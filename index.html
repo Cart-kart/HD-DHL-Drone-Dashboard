@@ -75,10 +75,6 @@
       <div class="chart-wrap"><canvas id="chartDay"></canvas></div>
     </div>
     <div class="chart-card">
-      <h3>Battery Landing Voltage (V)</h3>
-      <div class="chart-wrap"><canvas id="chartBatt"></canvas></div>
-    </div>
-    <div class="chart-card">
       <h3>Top Aisles Flown</h3>
       <div class="chart-wrap"><canvas id="chartAisle"></canvas></div>
     </div>
@@ -107,7 +103,7 @@
             <th>Avg %</th>
             <th>Min Landing</th>
             <th>Min %</th>
-            <th>Avg Drain</th>
+            <th>Total Used V</th>
             <th>Last Used</th>
             <th>Last Take-off V</th>
           </tr>
@@ -119,6 +115,12 @@
 
   <div class="table-card">
     <h3>Mission Log (most recent first)</h3>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:0.75rem;color:#64748b;margin-right:8px;">Filter by Drone:</label>
+      <select id="droneFilter" onchange="filterMissionTable()" style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 10px;font-size:0.8rem;cursor:pointer;">
+        <option value="">All drones</option>
+      </select>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -126,6 +128,7 @@
             <th>Date</th>
             <th>Operator</th>
             <th>RC Pilot</th>
+            <th>Drone</th>
             <th>Aisle</th>
             <th>Battery</th>
             <th>Log ID</th>
@@ -327,6 +330,7 @@ function processData(rows) {
     const batt = (r[11] || r[C.battName] || '').trim();
     const aisle = normalizeAisle((r[C.inPlant] || r[28] || '').trim());
     const rcOp = r[C.rcOp] || '—';
+    const drone = (r[C.drone] || '—').trim();
     const logId = r[C.logId] || '—';
     const charge = normTotal(parseFloat(r[C.battCharge]) || null);
 
@@ -358,7 +362,7 @@ function processData(rows) {
     missions.push({
       date, ts,
       person: r[C.person] || '—',
-      rcOp, aisle, batt, logId, charge,
+      rcOp, drone, aisle, batt, logId, charge,
       armTime: resolvedArm || '—',
       disarmTime: t3 ? (t3[C.disarmTime] || '—') : '—',
       duration, landingV: landingV,
@@ -402,13 +406,6 @@ function renderDashboard(missions, batteryMap) {
 
 
   // Chart: Battery landing voltage over time
-  const battData = missions
-    .filter(m => m.landingV && m.landingV > 6)
-    .map(m => ({ x: m.date, y: m.landingV }));
-  const battLabels = battData.map(d => d.x);
-  const battVals = battData.map(d => d.y);
-  renderLineChart('chartBatt', battLabels, battVals);
-
   // Chart: Top aisles
   const aisleMap = {};
   missions.forEach(m => {
@@ -439,7 +436,7 @@ function renderDashboard(missions, batteryMap) {
     const avgV = vs.length ? (vs.reduce((a,v)=>a+v,0)/vs.length).toFixed(2) : '—';
     const minV = vs.length ? Math.min(...vs).toFixed(2) : '—';
     const drains = bd.drains;
-    const avgDrain = drains.length ? (drains.reduce((a,v)=>a+v,0)/drains.length).toFixed(2) : '—';
+    const totalUsed = drains.length ? drains.reduce((a,v)=>a+v,0).toFixed(2) : '—';
     const minVNum = parseFloat(minV);
     const minCell = vs.length ? parseFloat(cellV(minVNum)) : null;
     const avgPct = avgV !== '—' ? pctFull(parseFloat(avgV)) : null;
@@ -453,7 +450,7 @@ function renderDashboard(missions, batteryMap) {
       <td>${avgPct !== null ? `<span style="color:${pctColor(avgPct)}">${avgPct}%</span>` : '—'}</td>
       <td>${minV !== '—' ? `${minV}V <span style="color:#64748b;font-size:0.85em">(${minCell}V/cell)</span>` : '—'}</td>
       <td>${minPct !== null ? `<span style="color:${pctColor(minPct)}">${minPct}%</span>` : '—'}</td>
-      <td>${avgDrain !== '—' ? avgDrain+'V' : '—'}</td>
+      <td>${totalUsed !== '—' ? totalUsed+'V' : '—'}</td>
       <td>${bd.lastUsed}</td>
       <td>${takeoffV}</td>
     </tr>`;
@@ -486,6 +483,7 @@ function renderDashboard(missions, batteryMap) {
       <td>${m.date}</td>
       <td>${m.person.replace(' DHL','')}</td>
       <td>${m.rcOp.replace(' DHL','')}</td>
+      <td>${m.drone}</td>
       <td>${m.aisle}</td>
       <td>${m.batt}</td>
       <td>${m.logId}</td>
@@ -499,9 +497,28 @@ function renderDashboard(missions, batteryMap) {
     </tr>`;
   }).join('');
 
+  // Populate drone filter
+  const droneNames = [...new Set(missions.map(m => m.drone).filter(d => d && d !== '—'))].sort();
+  const sel = document.getElementById('droneFilter');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All drones</option>' + droneNames.map(d => `<option value="${d}">${d}</option>`).join('');
+  if (prev) sel.value = prev;
+
   document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
+}
+
+function filterMissionTable() {
+  const filter = document.getElementById('droneFilter').value.toLowerCase();
+  document.querySelectorAll('#missionTable tr').forEach(row => {
+    const droneCell = row.cells[3]; // Drone is 4th column (index 3)
+    if (!filter || (droneCell && droneCell.textContent.toLowerCase() === filter)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
 }
 
 function renderChart(id, type, labels, data, color, label, horizontal = false) {
