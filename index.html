@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Mission Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+  header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.25rem; font-weight: 700; color: #f8fafc; }
+  header span { font-size: 0.75rem; color: #64748b; background: #0f172a; padding: 2px 8px; border-radius: 9999px; }
+  #refresh-btn { margin-left: auto; background: #3b82f6; border: none; color: white; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+  #refresh-btn:hover { background: #2563eb; }
+  #loading { text-align: center; padding: 60px; color: #64748b; }
+  .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* Stats Cards */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; }
+  .card .label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .card .value { font-size: 1.8rem; font-weight: 700; color: #f8fafc; }
+  .card .sub { font-size: 0.72rem; color: #94a3b8; margin-top: 4px; }
+  .card.green .value { color: #4ade80; }
+  .card.red .value { color: #f87171; }
+  .card.blue .value { color: #60a5fa; }
+  .card.yellow .value { color: #fbbf24; }
+
+  /* Charts */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .chart-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; }
+  .chart-card h3 { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .chart-wrap { position: relative; height: 220px; }
+  @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
+
+  /* Table */
+  .table-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; }
+  .table-card h3 { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th { background: #0f172a; color: #64748b; font-weight: 600; text-align: left; padding: 8px 10px; white-space: nowrap; }
+  td { padding: 8px 10px; border-top: 1px solid #334155; color: #cbd5e1; white-space: nowrap; }
+  tr:hover td { background: rgba(148,163,184,0.07); }
+  tr[style*="2d0a0a"] td { color: #fca5a5; }
+  tr[style*="2d0a0a"]:hover td { background: #3f0f0f; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+  .badge.ok { background: #14532d; color: #4ade80; }
+  .badge.fail { background: #450a0a; color: #f87171; }
+  .badge.warn { background: #451a03; color: #fbbf24; }
+  .battery-bar { display: inline-block; width: 40px; height: 8px; background: #334155; border-radius: 4px; vertical-align: middle; margin-right: 4px; overflow: hidden; }
+  .battery-fill { height: 100%; border-radius: 4px; }
+  #last-updated { font-size: 0.7rem; color: #475569; margin-top: 12px; text-align: right; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div style="font-size:0.65rem;color:#3b82f6;font-weight:600;letter-spacing:0.1em;">AVILON ROBOTICS</div>
+    <h1>Drone Mission Dashboard</h1>
+  </div>
+  <span>Photon 400 · DHL</span>
+  <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
+</header>
+
+<div id="loading">Loading mission data...</div>
+
+<div class="main" id="dashboard" style="display:none">
+  <div class="stats-grid" id="stats"></div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Missions per Day</h3>
+      <div class="chart-wrap"><canvas id="chartDay"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Battery Landing Voltage (V)</h3>
+      <div class="chart-wrap"><canvas id="chartBatt"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Top Aisles Flown</h3>
+      <div class="chart-wrap"><canvas id="chartAisle"></canvas></div>
+    </div>
+  </div>
+  <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#3b82f6;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Battery Analytics</div>
+  <div id="battRemark" style="margin-bottom:12px;font-size:0.72rem;color:#64748b;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 14px;"></div>
+  <div class="charts-grid" style="margin-bottom:14px">
+    <div class="chart-card">
+      <h3>Usage Count per Battery</h3>
+      <div class="chart-wrap"><canvas id="chartBattUse"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Avg Landing Voltage per Battery (V)</h3>
+      <div class="chart-wrap"><canvas id="chartBattAvg"></canvas></div>
+    </div>
+  </div>
+  <div class="table-card" style="margin-bottom:14px">
+    <h3>Battery Health Summary</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Battery</th>
+            <th>Times Used</th>
+            <th>Avg Landing</th>
+            <th>Avg %</th>
+            <th>Min Landing</th>
+            <th>Min %</th>
+            <th>Avg Drain</th>
+            <th>Last Used</th>
+            <th>Last Take-off V</th>
+          </tr>
+        </thead>
+        <tbody id="battTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h3>Mission Log (most recent first)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Operator</th>
+            <th>RC Pilot</th>
+            <th>Aisle</th>
+            <th>Battery</th>
+            <th>Log ID</th>
+            <th>Take-off V</th>
+            <th>Arm</th>
+            <th>Disarm</th>
+            <th>Duration</th>
+            <th>Landing V</th>
+            <th>Status</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody id="missionTable"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="last-updated"></div>
+</div>
+
+<script>
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT3Xjgv_SDXa7BPxWItpqM5daFszOjZJJGLDm7N2nU32ut51stVGvARxXzTtICrgKVHrLIRy2Wzc3V_/pub?output=csv';
+const PROXIES = [
+  'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL),
+  'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL),
+  'https://thingproxy.freeboard.io/fetch/' + SHEET_URL,
+];
+let charts = {};
+
+async function tryProxy(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  if (!text.includes('Timestamp')) throw new Error('Bad response');
+  return text;
+}
+
+async function loadData() {
+  document.getElementById('loading').innerHTML = 'Loading mission data...';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+
+  let csvText = null;
+  for (const proxy of PROXIES) {
+    try {
+      csvText = await tryProxy(proxy);
+      break;
+    } catch (e) {
+      console.warn('Proxy failed:', proxy, e.message);
+    }
+  }
+
+  if (!csvText) {
+    document.getElementById('loading').innerHTML =
+      'Could not reach Google Sheets.<br><small style="color:#64748b">Using cached data instead.</small>';
+    setTimeout(() => {
+      const result = Papa.parse(FALLBACK_CSV, { header: false, skipEmptyLines: true });
+      processData(result.data);
+    }, 1200);
+    return;
+  }
+
+  const result = Papa.parse(csvText, { header: false, skipEmptyLines: true });
+  processData(result.data);
+}
+
+function parseMissionTime(timeStr) {
+  if (!timeStr) return null;
+  // Handle "8:35:00 AM" or "1:41:00 PM" format
+  const m = timeStr.match(/(\d+):(\d+)(?::\d+)?\s*(AM|PM)/i);
+  if (!m) return null;
+  let h = parseInt(m[1]), min = parseInt(m[2]);
+  const ampm = m[3].toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+function missionDuration(arm, disarm) {
+  const a = parseMissionTime(arm), d = parseMissionTime(disarm);
+  if (a === null || d === null) return null;
+  let diff = d - a;
+  if (diff < 0) diff += 24 * 60;
+  return diff;
+}
+
+function formatDuration(mins) {
+  if (mins === null) return '—';
+  return mins + ' min';
+}
+
+// Extract "HH:MM" (24h) from a full timestamp string "M/D/YYYY HH:MM:SS"
+function tsToTime(ts) {
+  if (!ts) return null;
+  const parts = ts.trim().split(' ');
+  if (parts.length < 2) return null;
+  const [h, m] = parts[1].split(':').map(Number);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Convert "H:MM:SS AM/PM" from sheet data to "HH:MM" (24h) for display
+function fmtTime(timeStr) {
+  if (!timeStr || timeStr === '—') return timeStr || '—';
+  const mins = parseMissionTime(timeStr);
+  if (mins === null) return timeStr;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Aisle master lookup — number → full canonical name
+const AISLE_MAP = {
+   1: 'N01_PAK_PAL',
+   2: 'N02_PAI_PAJ',
+   3: 'N03_PAG_PAH',
+   4: 'N04_PAE_PAF',
+   5: 'N05_PAC_PAD',
+   6: 'N06_PAA_PAB',
+   7: 'N07_VBK_VBL',
+   8: 'N08_VBI_VBJ',
+   9: 'N09_VBG_VBH',
+  10: 'N10_VBE_VBF',
+  11: 'N11_VBC_VBD',
+  12: 'N12_VBA_VBB',
+  13: 'N13_VAQ_VAR',
+  14: 'N14_VAO_VAP',
+  15: 'N15_VAM_VAN',
+  16: 'N16_VAK_VAL',
+  17: 'N17_VAI_VAJ',
+  18: 'N18_VAG_VAH',
+  19: 'N19_VAE_VAF',
+  20: 'N20_VAC_VAD',
+  21: 'N21_VAA_VAB',
+};
+
+function normalizeAisle(raw) {
+  if (!raw || raw === '—') return '—';
+  const m = raw.trim().match(/[Nn][Oo]?\.?\s*0*(\d+)/);
+  if (!m) return raw.trim();
+  const num = parseInt(m[1]);
+  return AISLE_MAP[num] || ('N' + String(num).padStart(2, '0'));
+}
+
+const CELLS = 6;
+const CELL_FULL  = 4.20;                     // 100% reference (max charge)
+const CELL_EMPTY = 3.10;                     // 0% reference (depleted)
+const PACK_FULL  = CELL_FULL  * CELLS;       // 25.2V
+const PACK_EMPTY = CELL_EMPTY * CELLS;       // 18.6V
+
+// Normalize to total pack voltage — some operators log per-cell (~3.x), others log total (~22.x)
+function normTotal(v) {
+  if (!v || v <= 1) return null;
+  return v < 6 ? v * CELLS : v;
+}
+function cellV(total) { return total ? (total / CELLS).toFixed(2) : null; }
+function pctFull(total) {
+  if (!total) return 0;
+  const pct = (total - PACK_EMPTY) / (PACK_FULL - PACK_EMPTY) * 100;
+  return Math.min(100, Math.max(0, Math.round(pct)));
+}
+function fmtV(raw) {
+  const total = normTotal(raw);
+  if (!total) return '—';
+  const pct = pctFull(total);
+  const col = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
+  return `${total.toFixed(2)}V <span style="color:#64748b;font-size:0.75em">(${cellV(total)}V/cell · <span style="color:${col}">${pct}%</span>)</span>`;
+}
+
+function processData(rows) {
+  const header = rows[0];
+  const data = rows.slice(1);
+
+  // Column indices
+  const C = {
+    timestamp: 0, person: 1, type: 2, completed: 3, reason: 4,
+    armTime: 5, disarmTime: 6, battName: 7, battLanding: 8,
+    drone: 9, rcOp: 10,
+    logId: 22, inPlant: 29, battCharge: 31
+  };
+
+  const batteryMap = {};
+  const missions = [];
+
+  // Build type 3 lookup keyed by date_batt (after-disarm records)
+  const type3map = {};
+  const type3 = data.filter(r => r[C.type] && r[C.type].includes('3.'));
+  type3.forEach(r => {
+    const date = r[C.timestamp].split(' ')[0];
+    const battId = (r[C.battName] || '').replace(/\s.*/, '').trim(); // strip notes like "No.78"
+    const key = date + '_' + battId;
+    // keep last entry per key (multiple disarms same batt same day)
+    if (!type3map[key]) type3map[key] = [];
+    type3map[key].push(r);
+  });
+
+  // Use type 2 (takeoff) as base — every takeoff = one mission row
+  const type2 = data.filter(r => r[C.type] && r[C.type].includes('2.'));
+  type2.forEach((r, idx) => {
+    const ts = r[C.timestamp];
+    const date = ts.split(' ')[0];
+    const batt = (r[11] || r[C.battName] || '').trim();
+    const aisle = normalizeAisle((r[C.inPlant] || r[28] || '').trim());
+    const rcOp = r[C.rcOp] || '—';
+    const logId = r[C.logId] || '—';
+    const charge = normTotal(parseFloat(r[C.battCharge]) || null);
+
+    // Find matching type 3 record
+    const key = date + '_' + batt;
+    const t3list = type3map[key];
+    // pick the t3 entry not yet consumed (FIFO)
+    if (!type3map[key + '_used']) type3map[key + '_used'] = 0;
+    const t3 = t3list ? t3list[type3map[key + '_used']++] : null;
+
+    const estimatedArm = tsToTime(ts);
+    const landingV = t3 ? normTotal(parseFloat((t3[C.battLanding] || '').replace(/\s.*/, '')) || null) : null;
+    const resolvedArm = t3 ? (t3[C.armTime] || estimatedArm) : estimatedArm;
+    const duration = t3 ? missionDuration(resolvedArm, t3[C.disarmTime]) : null;
+    const completed = t3 ? (t3[C.completed] || '') : '';
+    const reason = t3 ? (t3[C.reason] || '') : '';
+    const hasResult = !!t3;
+
+    // Battery stats
+    if (batt) {
+      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], lastUsed: date, lastCharge: null };
+      const b = batteryMap[batt];
+      b.uses++;
+      if (landingV && landingV > 6) b.landingVoltages.push(landingV);
+      if (charge && landingV && landingV > 6) b.drains.push(charge - landingV);
+      if (date >= b.lastUsed) { b.lastUsed = date; if (charge) b.lastCharge = charge; }
+    }
+
+    missions.push({
+      date, ts,
+      person: r[C.person] || '—',
+      rcOp, aisle, batt, logId, charge,
+      armTime: resolvedArm || '—',
+      disarmTime: t3 ? (t3[C.disarmTime] || '—') : '—',
+      duration, landingV: landingV,
+      completed, reason, hasResult
+    });
+  });
+
+  renderDashboard(missions, batteryMap);
+}
+
+function renderDashboard(missions, batteryMap) {
+  // Stats
+  const total = missions.length;
+  const withResult = missions.filter(m => m.hasResult);
+  const completed = missions.filter(m => m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ')).length;
+  const failed = withResult.filter(m => m.completed.includes('ไม่เสร็จ')).length;
+  const noData = total - withResult.length;
+  const rate = withResult.length ? Math.round(completed / withResult.length * 100) : 0;
+  const operators = [...new Set(missions.map(m => m.person))];
+  const avgDuration = withResult.filter(m => m.duration).reduce((s, m) => s + m.duration, 0) / (withResult.filter(m => m.duration).length || 1);
+  const battVoltages = missions.filter(m => m.landingV && m.landingV > 6);
+  const avgBatt = battVoltages.length ? (battVoltages.reduce((s, m) => s + m.landingV, 0) / battVoltages.length).toFixed(2) : '—';
+
+  document.getElementById('stats').innerHTML = `
+    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with result · ${noData} no data</div></div>
+    <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of confirmed flights</div></div>
+    <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
+    <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => o.replace(' DHL','')).join(', ')}</div></div>
+    <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
+    <div class="card"><div class="label">Avg Landing V</div><div class="value">${avgBatt}<span style="font-size:1rem;color:#94a3b8"> V</span></div><div class="sub">${avgBatt !== '—' ? cellV(parseFloat(avgBatt))+'V/cell · 6S' : 'battery at disarm'}</div></div>
+  `;
+
+  // Chart: Missions per day
+  const dayMap = {};
+  missions.forEach(m => {
+    dayMap[m.date] = (dayMap[m.date] || 0) + 1;
+  });
+  const dayLabels = Object.keys(dayMap).sort();
+  const dayVals = dayLabels.map(d => dayMap[d]);
+  renderChart('chartDay', 'bar', dayLabels, dayVals, '#3b82f6', 'Missions');
+
+
+  // Chart: Battery landing voltage over time
+  const battData = missions
+    .filter(m => m.landingV && m.landingV > 6)
+    .map(m => ({ x: m.date, y: m.landingV }));
+  const battLabels = battData.map(d => d.x);
+  const battVals = battData.map(d => d.y);
+  renderLineChart('chartBatt', battLabels, battVals);
+
+  // Chart: Top aisles
+  const aisleMap = {};
+  missions.forEach(m => {
+    if (m.aisle && m.aisle !== '—') {
+      aisleMap[m.aisle] = (aisleMap[m.aisle] || 0) + 1;
+    }
+  });
+  const aislesSorted = Object.entries(aisleMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  renderChart('chartAisle', 'bar', aislesSorted.map(a => a[0]), aislesSorted.map(a => a[1]), '#a78bfa', 'Flights', true);
+
+  // Battery remark
+  document.getElementById('battRemark').innerHTML =
+    `Full charge: <strong style="color:#4ade80">${CELL_FULL}V/cell = ${PACK_FULL.toFixed(1)}V (100%)</strong> &nbsp;·&nbsp; Depleted: <strong style="color:#f87171">${CELL_EMPTY}V/cell = ${PACK_EMPTY.toFixed(1)}V (0%)</strong> &nbsp;·&nbsp; e.g. 3.30V/cell ≈ 18% · 4.10V/cell ≈ 91%`;
+
+  // Battery charts & table
+  const battIds = Object.keys(batteryMap).filter(b => b && b !== '—').sort();
+  const battUseCounts = battIds.map(b => batteryMap[b].uses);
+  const battAvgV = battIds.map(b => {
+    const vs = batteryMap[b].landingVoltages;
+    return vs.length ? parseFloat((vs.reduce((a,v)=>a+v,0)/vs.length).toFixed(2)) : 0;
+  });
+  renderChart('chartBattUse', 'bar', battIds.map(b=>'#'+b), battUseCounts, '#f59e0b', 'Uses');
+  renderChart('chartBattAvg', 'bar', battIds.map(b=>'#'+b), battAvgV, '#34d399', 'Avg V');
+
+  document.getElementById('battTable').innerHTML = battIds.map(b => {
+    const bd = batteryMap[b];
+    const vs = bd.landingVoltages;
+    const avgV = vs.length ? (vs.reduce((a,v)=>a+v,0)/vs.length).toFixed(2) : '—';
+    const minV = vs.length ? Math.min(...vs).toFixed(2) : '—';
+    const drains = bd.drains;
+    const avgDrain = drains.length ? (drains.reduce((a,v)=>a+v,0)/drains.length).toFixed(2) : '—';
+    const minVNum = parseFloat(minV);
+    const minCell = vs.length ? parseFloat(cellV(minVNum)) : null;
+    const avgPct = avgV !== '—' ? pctFull(parseFloat(avgV)) : null;
+    const minPct = minV !== '—' ? pctFull(minVNum) : null;
+    const pctColor = (p) => p >= 80 ? '#4ade80' : p >= 60 ? '#fbbf24' : '#f87171';
+    const takeoffV = bd.lastCharge ? fmtV(bd.lastCharge) : '—';
+    return `<tr>
+      <td style="font-weight:700;color:#f8fafc">#${b}</td>
+      <td><strong>${bd.uses}</strong> missions</td>
+      <td>${avgV !== '—' ? `${avgV}V <span style="color:#64748b;font-size:0.85em">(${cellV(parseFloat(avgV))}V/cell)</span>` : '—'}</td>
+      <td>${avgPct !== null ? `<span style="color:${pctColor(avgPct)}">${avgPct}%</span>` : '—'}</td>
+      <td>${minV !== '—' ? `${minV}V <span style="color:#64748b;font-size:0.85em">(${minCell}V/cell)</span>` : '—'}</td>
+      <td>${minPct !== null ? `<span style="color:${pctColor(minPct)}">${minPct}%</span>` : '—'}</td>
+      <td>${avgDrain !== '—' ? avgDrain+'V' : '—'}</td>
+      <td>${bd.lastUsed}</td>
+      <td>${takeoffV}</td>
+    </tr>`;
+  }).join('');
+
+  // Table
+  const sorted = [...missions].reverse();
+  const tbody = document.getElementById('missionTable');
+  let dayIndex = -1, lastDate = null;
+  tbody.innerHTML = sorted.map(m => {
+    if (m.date !== lastDate) { lastDate = m.date; dayIndex++; }
+    const ok = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
+    const bv = m.landingV && m.landingV > 6;
+    const pct = bv ? pctFull(m.landingV) : 0;
+    const color = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
+    let statusCell, noteCell;
+    if (!m.hasResult) {
+      statusCell = `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`;
+      noteCell = `<span style="color:#475569;font-style:italic">no mission complete data</span>`;
+    } else {
+      statusCell = `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
+      noteCell = `<span style="color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${m.reason}">${m.reason || ''}</span>`;
+    }
+    const aborted = m.hasResult && !ok;
+    const dayBg = dayIndex % 2 === 0 ? '#0d1526' : '#1a2640';
+    const rowStyle = aborted
+      ? 'background:#2d0a0a;border-left:3px solid #ef4444;'
+      : !m.hasResult ? `background:${dayBg};opacity:0.6;` : `background:${dayBg};`;
+    return `<tr style="${rowStyle}">
+      <td>${m.date}</td>
+      <td>${m.person.replace(' DHL','')}</td>
+      <td>${m.rcOp.replace(' DHL','')}</td>
+      <td>${m.aisle}</td>
+      <td>${m.batt}</td>
+      <td>${m.logId}</td>
+      <td>${m.charge ? fmtV(m.charge) : '—'}</td>
+      <td>${fmtTime(m.armTime)}</td>
+      <td>${fmtTime(m.disarmTime)}</td>
+      <td>${formatDuration(m.duration)}</td>
+      <td>${bv ? `<span class="battery-bar"><span class="battery-fill" style="width:${pct}%;background:${color}"></span></span>${fmtV(m.landingV)}` : '—'}</td>
+      <td>${statusCell}</td>
+      <td>${noteCell}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString();
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+function renderChart(id, type, labels, data, color, label, horizontal = false) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, {
+    type,
+    data: {
+      labels,
+      datasets: [{ label, data, backgroundColor: Array.isArray(color) ? color : color + 'cc', borderColor: Array.isArray(color) ? color : color, borderWidth: type === 'bar' ? 0 : 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: horizontal ? 'y' : 'x',
+      plugins: { legend: { display: type !== 'bar', labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: type !== 'doughnut' ? {
+        x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#1e3a5f22' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#334155' } }
+      } : {}
+    }
+  });
+}
+
+function renderLineChart(id, labels, data) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Voltage (V)',
+        data,
+        borderColor: '#34d399',
+        backgroundColor: '#34d39922',
+        borderWidth: 2,
+        pointRadius: 3,
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 10 }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#334155' }, min: PACK_EMPTY - 0.6, max: PACK_FULL + 0.3 }
+      }
+    }
+  });
+}
+
+const FALLBACK_CSV = `Timestamp,ชื่อผู้ทำ Checklist,ตัวเลือก Checklist,จบภารกิจหรือไม่?,เหตุผลที่ภารกิจ บินไม่จบ (ข้ามข้อนี้ถ้าบินจบปกติ),Arming Time,Disarm Time,Battery Name,Battery Landing Stat,Drone Name,ชื่อผู้ถือ RC,Battery Name,Aisle Checking [ทำการแจ้งพนักงานผู้รับผิดชอบพื้นที่แล้ว],Aisle Checking [ทำการคล้องโซ่ และวางกรวยป้องกันพื้นที่แล้ว],"Aisle Checking [พื้นที่ Aisle ที่พื้น พร้อมสำหรับบิน (พาเลต, รถคอมคาร์ท, อื่นๆ)]","Aisle Checking [พื้นที่ Aisle บนชั้น พร้อมสำหรับบิน (ฟิล์มไม่บดบัง, Tag ไม่ชำรุด)]",Remote Controler (RC) [คันโยก [RC] ทั้งหมด อยู่ในตำแหน่งพร้อมสำหรับเปิด],Remote Controler (RC) [เปิด [RC] และไม่ขึ้น 'Warning' ใดๆ],Remote Controler (RC) [แบตเตอร์รี่ [RC] ไม่ต่ำกว่า 4.8v],Ground Checking 1 [เช็คการตอบสนองของ [กล้อง] ซ้าย และ ขวา],Ground Checking 1 [Restart VSN],Ground Checking 1 [ความจำ [Disk] ไม่เกิน 70%],LogID : ,Ground Checking 2 [ระดับแบตเตอรี่ของโดรนต้องมากกว่า [ 24 V. ]],Ground Checking 2 [Internet: ไม่เกิน [ -70 dBm ] ],Ground Checking 2 [เช็คอุณหภูมิ ต้องไม่มากกว่า 70°C],Ground Checking 2 [Ground Check Status แสดงผล มากกว่า 80% (สีเขียว)],Ground Checking 2 [อัพโหลด [ Map-Marker ] ให้ตรงกับซอยภารกิจ],External Mission,In-Plant Mission,ตรวจสอบอีกครั้งว่า RC พร้อมใช้งาน,ประจุของแบตเตอร์รี่ขณะนี้
+2/13/2026 13:41:37,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),17,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),N06,,ใช่,4.16,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/13/2026 14:08:27,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:41:00 PM,2:02:00 PM,72,3.7,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/16/2026 8:35:08,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),19,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),No2,,ใช่,24.75,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/16/2026 8:57:02,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:34:00 AM,8:55:00 AM,71,21.9,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/16/2026 9:11:45,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),20,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),NO04,,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/16/2026 14:24:55,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),No5,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),21,,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/17/2026 8:16:01,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),23,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),N11,,ใช่,24.8 no.78,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/17/2026 8:37:31,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:16:00 AM,8:35:00 AM,78,22.3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/17/2026 9:04:17,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),24,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),N14,,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/17/2026 9:25:12,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:58:00 AM,9:19:00 AM,71,22.2,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/17/2026 13:15:01,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),25,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N06_PAA_PAB,ใช่,24.6,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/17/2026 13:54:16,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:05:00 PM,1:28:00 PM,72,22.4,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/17/2026 13:56:18,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),26,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N17_VAI_VAJ,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/17/2026 14:13:51,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:50:00 PM,2:12:00 PM,73,22,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/18/2026 8:28:49,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),27,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/18/2026 8:47:38,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:27:00 AM,8:47:00 AM,71,21.7,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/18/2026 8:59:23,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),28,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/18/2026 9:31:12,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:59:00 AM,9:30:00 AM,72,20.2,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/18/2026 9:38:26,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),29,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N06_PAA_PAB,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/18/2026 13:47:29,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),31,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N09_VBG_VBH,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/18/2026 14:10:02,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),32,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N10_VBE_VBF,ใช่,25,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/18/2026 14:29:12,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,2:11:00 PM,2:27:00 PM,71,23,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/18/2026 14:43:12,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),34,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N20_VAC_VAD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/19/2026 8:28:40,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),36,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N03_PAG_PAH,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/19/2026 9:02:01,คุณหมวย DHL,3. After Disarm Stat Check,ไม่เสร็จสิ้น,ลงจอดด่วนเพราะ 'อื่นๆ' ผิดปกติ,8:28:00 AM,9:01:00 AM,78,21.02,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/20/2026 8:37:54,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),40,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N20_VAC_VAD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/20/2026 8:59:43,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:37:00 AM,8:54:00 AM,73,23,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/20/2026 11:11:23,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),44,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/20/2026 11:12:20,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,10:45:00 AM,11:02:00 AM,78,22.9,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/20/2026 13:18:41,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),47,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N09_VBG_VBH,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/20/2026 15:40:16,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),48,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N15_VAM_VAN,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/20/2026 15:48:17,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,3:38:00 PM,3:44:00 PM,73,23,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/20/2026 16:09:32,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,3:50:00 PM,4:06:00 PM,73,22.8,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/23/2026 8:36:35,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),53,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,24.5,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/23/2026 8:53:42,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:35:00 AM,8:52:00 AM,71,22.8,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/23/2026 9:06:42,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),54,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/23/2026 9:35:29,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,9:05:00 AM,9:35:00 AM,72,20.1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/23/2026 10:15:21,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),55,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N04_PAE_PAF,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/23/2026 10:24:20,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,10:13:00 AM,10:22:00 AM,02,24,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/23/2026 10:30:57,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),56,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N04_PAE_PAF,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/23/2026 15:30:15,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),59,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N02_PAI_PAJ,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/24/2026 8:42:18,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),63,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N08_VBI_VBJ,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/24/2026 9:04:20,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:39:00 AM,8:55:00 AM,71,22.9,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/24/2026 9:07:01,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),63,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/24/2026 9:25:28,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,9:06:00 AM,9:23:00 AM,72,22.8,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/24/2026 11:24:33,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),64,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N19_VAE_VAF,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/24/2026 11:41:12,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,11:20:00 AM,11:41:00 AM,73,22.5,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/24/2026 14:22:46,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),67,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N07_VBK_VBL,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/24/2026 14:37:02,คุณหมวย DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,2:20:00 PM,2:37:00 PM,78,22.7,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/24/2026 14:56:01,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),69,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N02_PAI_PAJ,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/25/2026 8:12:28,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),72,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N13_VAQ_VAR,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/25/2026 8:35:57,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),74,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N08_VBI_VBJ,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/25/2026 10:44:46,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),77,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N18_VAG_VAH,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/25/2026 11:32:01,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),78,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N14_VAO_VAP,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/25/2026 15:05:21,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),82,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/25/2026 15:38:55,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),83,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N06_PAA_PAB,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 8:23:07,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),84,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N10_VBE_VBF,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 8:46:54,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),85,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N09_VBG_VBH,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 9:16:12,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),86,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N17_VAI_VAJ,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 9:43:29,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),87,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N18_VAG_VAH,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 11:16:04,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),88,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N16_VAK_VAL,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 13:15:19,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),89,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N02_PAI_PAJ,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/26/2026 15:24:10,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),90,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/27/2026 8:24:02,คุณเอี้ยง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),92,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/27/2026 8:32:01,คุณหมวย DHL,3. After Disarm Stat Check,ไม่เสร็จสิ้น,โดรนเข้า 'Failsafe',8:24:00 AM,8:28:00 AM,78,24.8,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/27/2026 9:04:23,คุณเอี้ยง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:30:00 AM,9:00:00 AM,73,20,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2/27/2026 9:14:49,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),94,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N08_VBI_VBJ,ใช่,24.9,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/27/2026 9:42:59,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณหมวย DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),95,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N10_VBE_VBF,ใช่,24.5,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/27/2026 13:09:29,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),99,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N12_VBA_VBB,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+2/27/2026 13:24:53,คุณหมวย DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณเอี้ยง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),100,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N12_VBA_VBB,ใช่,24.8,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/2/2026 9:14:08,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),105,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,24.7,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/2/2026 13:00:47,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),107,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N08_VBI_VBJ,ใช่,4.12,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/2/2026 13:19:45,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:01:00 PM,1:18:00 PM,71,3.8,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/4/2026 8:32:08,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),109,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,4.1,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/4/2026 9:14:15,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),110,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N10_VBE_VBF,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/4/2026 9:34:03,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,9:15:00 AM,9:32:00 AM,02,3.82,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/4/2026 13:29:55,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),112,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N04_PAE_PAF,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/4/2026 13:41:35,คุณอัง DHL,3. After Disarm Stat Check,ไม่เสร็จสิ้น,ลงจอดด่วนเพราะ 'โดรน' สถานะผิดปกติ (ลักษณะการบิน),1:30:00 PM,1:40:00 PM,02,4.1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/4/2026 13:43:10,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),113,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N04_PAE_PAF,ใช่,4.15,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/5/2026 8:39:26,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),114,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N10_VBE_VBF,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/5/2026 8:58:51,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:40:00 AM,8:57:00 AM,78,3.81,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/5/2026 9:36:02,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),115,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,4.14,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/5/2026 9:54:39,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,8:40:00 AM,9:53:00 AM,02,3.83,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/5/2026 12:54:45,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),116,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,4.11,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/5/2026 13:10:12,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,71,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),117,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/6/2026 9:37:28,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),120,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N02_PAI_PAJ,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/6/2026 9:38:40,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,9:14:00 AM,9:36:00 AM,73,3.68,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/6/2026 13:58:03,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),121,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,4.14,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/6/2026 13:58:37,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:41:00 PM,1:57:00 PM,78,3.82,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/9/2026 8:29:53,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),123,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N11_VBC_VBD,ใช่,4.08,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/9/2026 9:37:03,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,73,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),124,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N05_PAC_PAD,ใช่,4.12,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/9/2026 10:08:51,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,9:37:00 AM,10:07:00 AM,73,3.3,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/9/2026 14:46:51,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),129,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),,N02_PAI_PAJ,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/11/2026 8:24:26,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),130,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N04_PAE_PAF,ใช่,4.13,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/11/2026 9:37:37,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),131,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N05_PAC_PAD,ใช่,4.14,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/11/2026 9:38:10,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,9:02:00 AM,9:32:00 AM,02,3.25,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/11/2026 13:22:08,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),132,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N11_VBC_VBD,ใช่,4.16,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
+3/11/2026 13:41:26,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:23:00 PM,1:39:00 PM,78,3.81,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+3/11/2026 15:45:49,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),133,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N02_PAI_PAJ,ใช่,4.15,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,`;
+
+loadData();
+</script>
+</body>
+</html>
