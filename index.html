@@ -62,6 +62,8 @@
     <h1>Drone Mission Dashboard</h1>
   </div>
   <span>Photon 400 · DHL</span>
+  <span id="data-source" style="font-size:0.7rem;color:#64748b;">connecting...</span>
+  <span id="auto-refresh-indicator" style="font-size:0.7rem;color:#64748b;">next refresh in <strong id="countdown">5:00</strong></span>
   <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
 </header>
 
@@ -105,7 +107,7 @@
             <th>Min %</th>
             <th>Total Used V</th>
             <th>Last Used</th>
-            <th>Last Take-off V</th>
+            <th>Avg Take-off V</th>
           </tr>
         </thead>
         <tbody id="battTable"></tbody>
@@ -149,12 +151,10 @@
 </div>
 
 <script>
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT3Xjgv_SDXa7BPxWItpqM5daFszOjZJJGLDm7N2nU32ut51stVGvARxXzTtICrgKVHrLIRy2Wzc3V_/pub?output=csv';
-const PROXIES = [
-  'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL),
-  'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL),
-  'https://thingproxy.freeboard.io/fetch/' + SHEET_URL,
-];
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxUNphRaA_UtuJw-8xu74uEeufQvGDdRAMrsyeNR2kadENwmpH1O85rjiVt-jsRFVBE/exec';
+function getProxies() {
+  return [ GAS_URL + '?_=' + Date.now() ];
+}
 let charts = {};
 
 async function tryProxy(url) {
@@ -171,7 +171,7 @@ async function loadData() {
   document.getElementById('dashboard').style.display = 'none';
 
   let csvText = null;
-  for (const proxy of PROXIES) {
+  for (const proxy of getProxies()) {
     try {
       csvText = await tryProxy(proxy);
       break;
@@ -182,14 +182,18 @@ async function loadData() {
 
   if (!csvText) {
     document.getElementById('loading').innerHTML =
-      'Could not reach Google Sheets.<br><small style="color:#64748b">Using cached data instead.</small>';
+      '⚠️ Could not reach Google Sheets. Showing <strong>old cached data</strong> — changes you made will NOT appear here.';
     setTimeout(() => {
+      document.getElementById('data-source').textContent = '⚠️ OFFLINE — showing cached data, not live';
+      document.getElementById('data-source').style.color = '#f87171';
       const result = Papa.parse(FALLBACK_CSV, { header: false, skipEmptyLines: true });
       processData(result.data);
     }, 1200);
     return;
   }
 
+  document.getElementById('data-source').textContent = '✓ Live data from Google Sheets';
+  document.getElementById('data-source').style.color = '#4ade80';
   const result = Papa.parse(csvText, { header: false, skipEmptyLines: true });
   processData(result.data);
 }
@@ -351,12 +355,13 @@ function processData(rows) {
 
     // Battery stats
     if (batt) {
-      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], lastUsed: date, lastCharge: null };
+      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], takeoffVoltages: [], lastUsed: date };
       const b = batteryMap[batt];
       b.uses++;
       if (landingV && landingV > 6) b.landingVoltages.push(landingV);
       if (charge && landingV && landingV > 6) b.drains.push(charge - landingV);
-      if (date >= b.lastUsed) { b.lastUsed = date; if (charge) b.lastCharge = charge; }
+      if (charge) b.takeoffVoltages.push(charge);
+      if (date >= b.lastUsed) b.lastUsed = date;
     }
 
     missions.push({
@@ -442,7 +447,9 @@ function renderDashboard(missions, batteryMap) {
     const avgPct = avgV !== '—' ? pctFull(parseFloat(avgV)) : null;
     const minPct = minV !== '—' ? pctFull(minVNum) : null;
     const pctColor = (p) => p >= 80 ? '#4ade80' : p >= 60 ? '#fbbf24' : '#f87171';
-    const takeoffV = bd.lastCharge ? fmtV(bd.lastCharge) : '—';
+    const tvs = bd.takeoffVoltages;
+    const avgTakeoff = tvs.length ? tvs.reduce((a,v)=>a+v,0)/tvs.length : null;
+    const takeoffV = avgTakeoff ? fmtV(avgTakeoff) : '—';
     return `<tr>
       <td style="font-weight:700;color:#f8fafc">#${b}</td>
       <td><strong>${bd.uses}</strong> missions</td>
@@ -671,6 +678,31 @@ const FALLBACK_CSV = `Timestamp,ชื่อผู้ทำ Checklist,ตัว�
 3/11/2026 13:22:08,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,78,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),132,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N11_VBC_VBD,ใช่,4.16,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
 3/11/2026 13:41:26,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:23:00 PM,1:39:00 PM,78,3.81,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 3/11/2026 15:45:49,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),133,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N02_PAI_PAJ,ใช่,4.15,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,`;
+
+const AUTO_REFRESH_SEC = 300; // 5 minutes
+let countdownVal = AUTO_REFRESH_SEC;
+let countdownTimer = null;
+
+function startCountdown() {
+  clearInterval(countdownTimer);
+  countdownVal = AUTO_REFRESH_SEC;
+  countdownTimer = setInterval(() => {
+    countdownVal--;
+    const m = Math.floor(countdownVal / 60);
+    const s = String(countdownVal % 60).padStart(2, '0');
+    document.getElementById('countdown').textContent = `${m}:${s}`;
+    if (countdownVal <= 0) {
+      clearInterval(countdownTimer);
+      loadData();
+    }
+  }, 1000);
+}
+
+const _origLoadData = loadData;
+loadData = function() {
+  _origLoadData();
+  startCountdown();
+};
 
 loadData();
 </script>
