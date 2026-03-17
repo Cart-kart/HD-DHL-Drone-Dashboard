@@ -95,6 +95,20 @@
   .bh-dur { color: #60a5fa; width: 50px; flex-shrink: 0; }
   .bh-aisle { color: #e2e8f0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bh-v { color: #4ade80; width: 55px; flex-shrink: 0; text-align: right; }
+  /* Aisle Overview section */
+  .aisle-overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 900px) { .aisle-overview-grid { grid-template-columns: 1fr; } }
+  .aisle-overview-grid .table-card { margin-bottom: 0; }
+  #aisleOverviewTable tbody tr { cursor: pointer; transition: filter 0.1s; }
+  #aisleOverviewTable tbody tr:hover td { filter: brightness(1.3); }
+  #aisleOverviewTable tbody tr.selected td { outline: 1px solid #60a5fa; }
+  .heat-bar { display: inline-block; height: 8px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+  /* Aisle history panel */
+  #aisle-history-panel { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; height: 340px; overflow-y: auto; display: flex; flex-direction: column; }
+  #aisle-history-panel .bh-empty { color: #475569; font-size: 0.78rem; font-style: italic; margin: auto; text-align: center; }
+  #aisle-history-panel .bh-title { font-size: 0.72rem; color: #60a5fa; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; flex-shrink: 0; }
+  /* Battery chart hint */
+  .chart-hint { font-size: 0.67rem; color: #475569; font-style: italic; margin-bottom: 8px; margin-top: -6px; }
 </style>
 </head>
 <body>
@@ -155,20 +169,25 @@
       </table>
     </div>
   </div>
-  <div class="table-card" style="margin-bottom:14px">
-    <h3>Top 5 Least Flown Aisles</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Aisle</th>
-            <th>Flight Count</th>
-            <th>Last Flight</th>
-          </tr>
-        </thead>
-        <tbody id="leastAisleTable"></tbody>
-      </table>
+  <div class="aisle-overview-grid">
+    <div class="table-card">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+        <h3 style="margin:0">All Aisles Overview</h3>
+        <span style="font-size:0.67rem;color:#475569;font-style:italic">&#9654; Click an aisle to see history</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;font-size:0.68rem;color:#64748b;">
+        <span>Fewest <span style="display:inline-block;width:32px;height:7px;background:linear-gradient(90deg,#fbbf24,#4ade80);border-radius:3px;vertical-align:middle;margin:0 4px"></span> Most flights</span>
+      </div>
+      <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
+        <table id="aisleOverviewTable">
+          <thead><tr><th>#</th><th>Aisle</th><th>Flights</th><th>Last Flight</th></tr></thead>
+          <tbody id="aisleOverviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="table-card">
+      <h3>Aisle History <span id="aisle-history-title" style="color:#60a5fa;font-weight:700"></span></h3>
+      <div id="aisle-history-panel"><div class="bh-empty">Click an aisle name to see flight history</div></div>
     </div>
   </div>
   <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#3b82f6;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Battery Analytics</div>
@@ -176,6 +195,7 @@
   <div class="charts-grid" style="margin-bottom:14px">
     <div class="chart-card">
       <h3>Usage Count per Battery</h3>
+      <div class="chart-hint">&#9654; Click a bar to see flight history</div>
       <div class="chart-wrap"><canvas id="chartBattUse"></canvas></div>
     </div>
     <div class="chart-card">
@@ -667,12 +687,27 @@ function renderDashboard(missions, batteryMap) {
   </tr>`;
   }).join('');
 
-  // Top 5 least flown aisles
-  const allAisleFlown = Object.entries(aisleMap).sort((a, b) => a[1] - b[1]).slice(0, 5);
-  document.getElementById('leastAisleTable').innerHTML = allAisleFlown.map(([aisle, cnt], i) => {
+  // All Aisles Overview with heatmap
+  const allAisleEntries = Object.entries(aisleMap).sort((a, b) => a[1] - b[1]);
+  const aisleMin = allAisleEntries.length ? allAisleEntries[0][1] : 0;
+  const aisleMax = allAisleEntries.length ? allAisleEntries[allAisleEntries.length-1][1] : 1;
+  window._lastAisleMap = aisleMap;
+  window._lastAisleLastFlight = aisleLastFlight;
+  document.getElementById('aisleOverviewBody').innerHTML = allAisleEntries.map(([aisle, cnt], i) => {
     const lf = aisleLastFlight[aisle];
     const lastStr = lf ? lf.date + (lf.time && lf.time !== '—' ? ' ' + lf.time : '') : '—';
-    return '<tr><td style="font-weight:700;color:#64748b">#' + (i+1) + '</td><td style="font-weight:600;color:#e2e8f0">' + aisle + '</td><td><strong style="color:#f87171">' + cnt + '</strong></td><td style="color:#64748b">' + lastStr + '</td></tr>';
+    const t = aisleMax > aisleMin ? (cnt - aisleMin) / (aisleMax - aisleMin) : 0.5;
+    const r = Math.round(251 + (74  - 251) * t);
+    const g = Math.round(191 + (222 - 191) * t);
+    const b = Math.round(36  + (128 - 36)  * t);
+    const col = `rgb(${r},${g},${b})`;
+    const rowBg = `rgba(${r},${g},${b},0.07)`;
+    return `<tr onclick="renderAisleHistory('${aisle.replace(/'/g,"\'")}', this)" style="background:${rowBg}">`
+      + `<td style="color:#475569;font-size:0.72rem">${i+1}</td>`
+      + `<td style="font-weight:600;color:${col};cursor:pointer">${aisle}</td>`
+      + `<td><span class="heat-bar" style="width:${Math.round(8 + t*40)}px;background:${col}"></span><strong style="color:${col}">${cnt}</strong></td>`
+      + `<td style="color:#64748b;font-size:0.72rem">${lastStr}</td>`
+      + `</tr>`;
   }).join('');
 
   // Battery remark
@@ -1036,6 +1071,42 @@ function renderLineChart(id, labels, data) {
       }
     }
   });
+}
+
+function renderAisleHistory(aisleId, rowEl) {
+  // Highlight selected row
+  document.querySelectorAll('#aisleOverviewBody tr').forEach(r => r.classList.remove('selected'));
+  if (rowEl) rowEl.classList.add('selected');
+  const missions = window._lastMissions || [];
+  const panel = document.getElementById('aisle-history-panel');
+  const titleEl = document.getElementById('aisle-history-title');
+  if (titleEl) titleEl.textContent = aisleId;
+  const flights = missions.filter(m => m.aisle === aisleId)
+    .sort((a, b) => {
+      const [am,ad,ay]=a.date.split('/').map(Number),[bm2,bd2,by2]=b.date.split('/').map(Number);
+      const da = new Date(ay,am-1,ad), db2 = new Date(by2,bm2-1,bd2);
+      if (da - db2 !== 0) return db2 - da;
+      return armMins(b.armTime) - armMins(a.armTime);
+    });
+  if (!flights.length) {
+    panel.innerHTML = '<div class="bh-empty">No flights recorded for ' + aisleId + '</div>';
+    return;
+  }
+  const rows = flights.map((m, i) => {
+    const ok = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
+    const flying = isFlying(m);
+    const status = flying ? '<span class="badge flying" style="font-size:0.65rem">In Flight</span>'
+      : !m.hasResult ? '<span class="badge assumed" style="font-size:0.65rem">Done*</span>'
+      : '<span class="badge ' + (ok?'ok':'fail') + '" style="font-size:0.65rem">' + (ok?'Done':'Fail') + '</span>';
+    const durStr = m.duration !== null ? m.duration + 'm' : '—';
+    return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span>'
+      + '<span class="bh-date">' + m.date + '</span>'
+      + '<span class="bh-dur">' + fmtTime(m.armTime) + '</span>'
+      + '<span style="width:50px;flex-shrink:0;font-size:0.72rem">' + durStr + '</span>'
+      + '<span style="flex:1;font-size:0.72rem;color:#94a3b8">#' + m.batt + ' · ' + m.person.replace(' DHL','') + '</span>'
+      + '<span style="flex-shrink:0">' + status + '</span></div>';
+  }).join('');
+  panel.innerHTML = '<div class="bh-title">' + aisleId + ' — ' + flights.length + ' flights</div>' + rows;
 }
 
 function renderBattHistory(battId) {
