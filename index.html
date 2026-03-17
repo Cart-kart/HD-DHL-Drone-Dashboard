@@ -63,8 +63,6 @@
   .today-stat .ts-val { font-size: 1.6rem; font-weight: 700; line-height: 1; }
   .today-stat .ts-lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; margin-top: 3px; }
   .today-empty { color: #475569; font-size: 0.8rem; font-style: italic; text-align: center; padding: 20px 0; }
-  #stale-banner { display:none; background:#451a03; border:1px solid #f59e0b; border-radius:8px; padding:10px 16px; margin-bottom:16px; font-size:0.8rem; color:#fbbf24; }
-  #stale-banner strong { color:#f8fafc; }
   .tip { position: relative; cursor: default; }
   .tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #e2e8f0; font-size: 0.7rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; border: 1px solid #334155; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 99; }
   .tip:hover::after, .tip:focus::after { opacity: 1; }
@@ -89,7 +87,6 @@
 <div id="loading">Loading mission data...</div>
 
 <div class="main" id="dashboard" style="display:none">
-  <div id="stale-banner"></div>
   <div class="stats-grid" id="stats"></div>
   <div id="today-panel"></div>
   <div class="charts-grid">
@@ -452,22 +449,6 @@ function renderDashboard(missions, batteryMap) {
   const battVoltages = missions.filter(m => m.landingV && m.landingV > 6);
   const avgBatt = battVoltages.length ? (battVoltages.reduce((s, m) => s + m.landingV, 0) / battVoltages.length).toFixed(2) : '—';
 
-  // Staleness check
-  const allDates = missions.map(m => m.date).filter(Boolean);
-  const latestDate = allDates.length ? allDates.reduce((a,b) => a > b ? a : b) : null;
-  const staleBanner = document.getElementById('stale-banner');
-  if (latestDate) {
-    const [mon, day, yr] = latestDate.split('/');
-    const latestMs = new Date(parseInt(yr), parseInt(mon)-1, parseInt(day));
-    const daysOld = Math.floor((new Date() - latestMs) / 86400000);
-    if (daysOld >= 1) {
-      staleBanner.style.display = 'block';
-      staleBanner.innerHTML = `⚠️ Data last updated <strong>${latestDate}</strong> — <strong>${daysOld} day${daysOld>1?'s':''} ago</strong>. All sections below reflect this date. Live fetch may have failed — try <strong>↺ Refresh</strong>.`;
-    } else {
-      staleBanner.style.display = 'none';
-    }
-  }
-
   document.getElementById('stats').innerHTML = `
     <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with result · ${noData} no data</div></div>
     <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of confirmed flights</div></div>
@@ -482,7 +463,11 @@ function renderDashboard(missions, batteryMap) {
   missions.forEach(m => {
     dayMap[m.date] = (dayMap[m.date] || 0) + 1;
   });
-  const dayLabels = Object.keys(dayMap).sort();
+  const dayLabels = Object.keys(dayMap).sort((a, b) => {
+    const [am,ad,ay] = a.split('/').map(Number);
+    const [bm,bd,by] = b.split('/').map(Number);
+    return new Date(ay,am-1,ad) - new Date(by,bm-1,bd);
+  });
   const dayVals = dayLabels.map(d => dayMap[d]);
   renderChart('chartDay', 'bar', dayLabels, dayVals, '#3b82f6', 'Missions');
 
