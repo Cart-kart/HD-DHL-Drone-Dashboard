@@ -508,7 +508,7 @@ function renderDashboard(missions, batteryMap) {
       }
       const validMin = sortedSuccess.slice(cutIdxS);
       const avg = validDurs.reduce((a,v) => a+v, 0) / validDurs.length;
-      const last5 = recent.slice(-5);
+      const last5 = recent.slice(-5).reverse();
       return {
         aisle,
         count: durs.length,
