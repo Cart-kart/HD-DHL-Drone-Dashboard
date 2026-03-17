@@ -81,6 +81,8 @@
   .tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #e2e8f0; font-size: 0.7rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; border: 1px solid #334155; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 99; }
   .tip:hover::after, .tip:focus::after { opacity: 1; }
   .badge.flying { background: #1c3a2a; color: #34d399; border: 1px solid #34d399; animation: flypulse 1.4s infinite; }
+  .badge.assumed { background: #1a2e1a; color: #86efac; border: 1px dashed #4ade80; }
+  .badge.assumed { background: #1a2e1a; color: #86efac; border: 1px dashed #4ade80; }
   @keyframes flypulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
 
 </style>
@@ -721,28 +723,31 @@ function renderFlightsPanel(dateStr) {
     return;
   }
 
-  const done = todayMissions.filter(m => m.completed.includes('\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e2a\u0e34\u0e49\u0e19') && !m.completed.includes('\u0e44\u0e21\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08')).length;
-  const failed = todayMissions.filter(m => m.hasResult && m.completed.includes('\u0e44\u0e21\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08')).length;
-  const nodata = todayMissions.filter(m => !m.hasResult).length;
+  const confirmed = todayMissions.filter(m => m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ')).length;
+  const assumed = todayMissions.filter(m => !m.hasResult && !isFlying(m)).length;
+  const done = confirmed + assumed;
+  const failed = todayMissions.filter(m => m.hasResult && m.completed.includes('ไม่เสร็จ')).length;
+  const inFlight = todayMissions.filter(m => isFlying(m)).length;
 
-  const rows = [...todayMissions].reverse().filter(m => m.hasResult || isFlying(m)).map(m => {
-    const ok = m.completed.includes('\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e2a\u0e34\u0e49\u0e19') && !m.completed.includes('\u0e44\u0e21\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08');
+  const rows = [...todayMissions].reverse().map(m => {
+    const ok = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
+    const flying = isFlying(m);
+    const assumedDone = !m.hasResult && !flying;
     const bv = m.landingV && m.landingV > 6;
     const pct = bv ? pctFull(m.landingV) : 0;
     const col = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
-    const badge = !m.hasResult
-      ? (isFlying(m)
-          ? `<span class="badge flying">In Flight</span>`
-          : `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`)
-      : `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
-    const rowBg = !m.hasResult ? '#0f1a2e' : ok ? '#0d1f1a' : '#2d0a0a';
-    const landingCell = bv ? `<span class="battery-bar"><span class="battery-fill" style="width:${pct}%;background:${col}"></span></span><span style="color:${col}">${pct}%</span>` : '\u2014';
-    const landingTimeCell = isFlying(m) ? `<span style="color:#f59e0b;font-style:italic">Pending</span>` : (m.disarmTime && m.disarmTime !== '—' ? fmtTime(m.disarmTime) : '—');
+    const badge = flying
+      ? `<span class="badge flying">In Flight</span>`
+      : assumedDone
+        ? `<span class="badge assumed" title="No form submitted — assumed complete">Done*</span>`
+        : `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
+    const rowBg = flying ? '#0d2218' : (m.hasResult && !ok) ? '#2d0a0a' : assumedDone ? '#111a11' : '#0d1f1a';
+    const landingTimeCell = flying ? `<span style="color:#f59e0b;font-style:italic">Pending</span>` : (m.disarmTime && m.disarmTime !== '—' ? fmtTime(m.disarmTime) : '—');
     return `<tr style="background:${rowBg}"><td>${fmtTime(m.armTime)}</td><td>${m.rcOp.replace(' DHL','')}</td><td>${m.drone}</td><td>${m.aisle}</td><td>#${m.batt}</td><td>${landingTimeCell}</td><td>${formatDuration(m.duration)}</td><td>${m.logId || '—'}</td><td>${badge}</td></tr>`;
   }).join('');
 
-  panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">Today\'s Flights</div><div class="today-date">${label}</div></div><div class="today-stats"><div class="today-stat"><div class="ts-val" style="color:#60a5fa">${todayMissions.length}</div><div class="ts-lbl">Flights</div></div><div class="today-stat"><div class="ts-val" style="color:#4ade80">${done}</div><div class="ts-lbl">Completed</div></div><div class="today-stat"><div class="ts-val" style="color:#f87171">${failed}</div><div class="ts-lbl">Aborted</div></div><div class="today-stat"><div class="ts-val" style="color:#64748b">${nodata}</div><div class="ts-lbl">Pending</div></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>RC Pilot</th><th>Drone</th><th>Aisle</th><th>Battery</th><th>Landing</th><th>Duration</th><th>Log ID</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
+  const assumedNote = assumed > 0 ? `<div style="font-size:0.68rem;color:#64748b;margin-top:8px">* Done* = no form submitted — assumed complete (${assumed} flight${assumed>1?'s':''})</div>` : '';
+  panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">Today's Flights</div><div class="today-date">${label}</div></div><div class="today-stats"><div class="today-stat"><div class="ts-val" style="color:#60a5fa">${todayMissions.length}</div><div class="ts-lbl">Flights</div></div><div class="today-stat"><div class="ts-val" style="color:#4ade80">${done}</div><div class="ts-lbl">Completed</div></div><div class="today-stat"><div class="ts-val" style="color:#f87171">${failed}</div><div class="ts-lbl">Aborted</div></div><div class="today-stat"><div class="ts-val" style="color:#34d399">${inFlight}</div><div class="ts-lbl">In Flight</div></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>RC Pilot</th><th>Drone</th><th>Aisle</th><th>Battery</th><th>Landing</th><th>Duration</th><th>Log ID</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>${assumedNote}</div>`;}
 
 function filterMissionTable() {
   const filter = document.getElementById('droneFilter').value.toLowerCase();
