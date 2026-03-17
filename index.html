@@ -414,13 +414,15 @@ function processData(rows) {
 
     // Battery stats
     if (batt) {
-      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], takeoffVoltages: [], lastUsed: date };
+      const [bm,bd,by] = date.split('/').map(Number);
+      const dateMs = new Date(by,bm-1,bd).getTime();
+      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], takeoffVoltages: [], lastUsed: date, lastMs: dateMs };
       const b = batteryMap[batt];
       b.uses++;
       if (landingV && landingV > 6) b.landingVoltages.push(landingV);
       if (charge && landingV && landingV > 6) b.drains.push(charge - landingV);
       if (charge) b.takeoffVoltages.push(charge);
-      if (date >= b.lastUsed) b.lastUsed = date;
+      if (dateMs >= b.lastMs) { b.lastUsed = date; b.lastMs = dateMs; }
     }
 
     missions.push({
@@ -507,7 +509,13 @@ function renderDashboard(missions, batteryMap) {
 
   // Aisle duration ranking
   const aisleDurMap = {};
-  missions.forEach(m => {
+  const missionsSorted = [...missions].sort((a, b) => {
+    const [am,ad,ay]=a.date.split('/').map(Number), [bm2,bd2,by2]=b.date.split('/').map(Number);
+    const da = new Date(ay,am-1,ad), db2 = new Date(by2,bm2-1,bd2);
+    if (da - db2 !== 0) return da - db2;
+    return (a.armTime||'00:00').localeCompare(b.armTime||'00:00');
+  });
+  missionsSorted.forEach(m => {
     if (m.aisle && m.aisle !== '—' && m.duration !== null) {
       if (!aisleDurMap[m.aisle]) aisleDurMap[m.aisle] = { all: [], success: [], recent: [] };
       aisleDurMap[m.aisle].all.push(m.duration);
@@ -515,7 +523,7 @@ function renderDashboard(missions, batteryMap) {
       const isSuccess = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
       if (isSuccess) aisleDurMap[m.aisle].success.push(m.duration);
     }
-  });
+  }); // end missionsSorted
   const aisleDurRanked = Object.entries(aisleDurMap)
     .map(([aisle, { all: durs, success: successDurs, recent }]) => {
       // Gap-based outlier filter: sort ascending, find gaps > 5 min
@@ -579,7 +587,7 @@ function renderDashboard(missions, batteryMap) {
     `Full charge: <strong style="color:#4ade80">${CELL_FULL}V/cell = ${PACK_FULL.toFixed(1)}V (100%)</strong> &nbsp;·&nbsp; Depleted: <strong style="color:#f87171">${CELL_EMPTY}V/cell = ${PACK_EMPTY.toFixed(1)}V (0%)</strong> &nbsp;·&nbsp; e.g. 3.30V/cell ≈ 18% · 4.10V/cell ≈ 91%`;
 
   // Battery charts & table
-  const battIds = Object.keys(batteryMap).filter(b => b && b !== '—').sort();
+  const battIds = Object.keys(batteryMap).filter(b => b && b !== '—').sort((a,b) => parseInt(a)||0 - (parseInt(b)||0));
   const battUseCounts = battIds.map(b => batteryMap[b].uses);
   const battAvgV = battIds.map(b => {
     const vs = batteryMap[b].landingVoltages;
