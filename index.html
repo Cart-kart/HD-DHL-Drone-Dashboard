@@ -497,8 +497,9 @@ function renderDashboard(missions, batteryMap) {
       aisleMap[m.aisle] = (aisleMap[m.aisle] || 0) + 1;
       // keep latest by date then armTime
       const cur = aisleLastFlight[m.aisle];
-      const mKey = m.date + ' ' + (m.armTime || '00:00');
-      if (!cur || mKey > cur.key) aisleLastFlight[m.aisle] = { key: mKey, date: m.date, time: m.armTime };
+      const [mm,md,my] = m.date.split('/').map(Number);
+      const mMs = new Date(my, mm-1, md, ...((m.armTime&&m.armTime!=='—')?m.armTime.split(':').map(Number):[0,0])).getTime();
+      if (!cur || mMs > cur.ms) aisleLastFlight[m.aisle] = { ms: mMs, date: m.date, time: m.armTime };
     }
   });
   const aislesSorted = Object.entries(aisleMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -811,7 +812,7 @@ function renderAisleChart(labels, data, lastFlightMap) {
         tooltip: {
           callbacks: {
             label: ctx => {
-              const aisle = ctx.label;
+              const aisle = ctx.chart.data.labels[ctx.dataIndex];
               const count = ctx.parsed.x;
               const lf = lastFlightMap[aisle];
               const lastStr = lf ? `  |  Last: ${lf.date}${lf.time && lf.time !== '—' ? ' ' + lf.time : ''}` : '';
