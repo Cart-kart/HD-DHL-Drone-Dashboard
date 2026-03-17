@@ -491,13 +491,18 @@ function renderDashboard(missions, batteryMap) {
   // Chart: Battery landing voltage over time
   // Chart: Top aisles
   const aisleMap = {};
+  const aisleLastFlight = {};
   missions.forEach(m => {
     if (m.aisle && m.aisle !== '—') {
       aisleMap[m.aisle] = (aisleMap[m.aisle] || 0) + 1;
+      // keep latest by date then armTime
+      const cur = aisleLastFlight[m.aisle];
+      const mKey = m.date + ' ' + (m.armTime || '00:00');
+      if (!cur || mKey > cur.key) aisleLastFlight[m.aisle] = { key: mKey, date: m.date, time: m.armTime };
     }
   });
   const aislesSorted = Object.entries(aisleMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  renderChart('chartAisle', 'bar', aislesSorted.map(a => a[0]), aislesSorted.map(a => a[1]), '#a78bfa', 'Flights', true);
+  renderAisleChart(aislesSorted.map(a => a[0]), aislesSorted.map(a => a[1]), aisleLastFlight);
 
   // Aisle duration ranking
   const aisleDurMap = {};
@@ -786,6 +791,41 @@ function drawCalendar() {
   }
   html += '</div>';
   document.getElementById('cal-grid').innerHTML = html;
+}
+
+
+function renderAisleChart(labels, data, lastFlightMap) {
+  if (charts['chartAisle']) charts['chartAisle'].destroy();
+  const ctx = document.getElementById('chartAisle').getContext('2d');
+  charts['chartAisle'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Flights', data, backgroundColor: '#a78bfacc', borderColor: '#a78bfa', borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const aisle = ctx.label;
+              const count = ctx.parsed.x;
+              const lf = lastFlightMap[aisle];
+              const lastStr = lf ? `  |  Last: ${lf.date}${lf.time && lf.time !== '—' ? ' ' + lf.time : ''}` : '';
+              return ` ${count} flights${lastStr}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#334155' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e3a5f22' } }
+      }
+    }
+  });
 }
 
 function renderChart(id, type, labels, data, color, label, horizontal = false) {
