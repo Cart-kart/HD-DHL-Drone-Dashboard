@@ -1126,10 +1126,25 @@ function renderBattHistory(battId) {
   if (!flights.length) { panel.innerHTML = '<div class="bh-empty">No flights for #' + battId + '</div>'; return; }
   const rows = flights.map((m, i) => {
     const durStr = m.duration !== null ? m.duration + 'm' : '—';
-    const vStr = m.landingV && m.landingV > 6 ? m.landingV.toFixed(2) + 'V' : '—';
-    return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span><span class="bh-date">' + m.date + '</span><span class="bh-dur">' + durStr + '</span><span class="bh-aisle">' + m.aisle + '</span><span class="bh-v">' + vStr + '</span></div>';
+    const preV  = m.charge  && m.charge  > 6 ? m.charge.toFixed(2)  + 'V' : '—';
+    const postV = m.landingV && m.landingV > 6 ? m.landingV.toFixed(2) + 'V' : '—';
+    const vStr  = '<span style="color:#60a5fa">' + preV + '</span>'
+                + '<span style="color:#475569;margin:0 3px">→</span>'
+                + '<span style="color:#4ade80">' + postV + '</span>';
+    return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span>'
+      + '<span class="bh-date">' + m.date + '</span>'
+      + '<span class="bh-dur">' + durStr + '</span>'
+      + '<span class="bh-aisle">' + m.aisle + '</span>'
+      + '<span class="bh-v" style="width:120px">' + vStr + '</span></div>';
   }).join('');
-  panel.innerHTML = '<div class="bh-title">Battery #' + battId + ' — ' + flights.length + ' flights</div>' + rows;
+  panel.innerHTML = '<div class="bh-title">Battery #' + battId + ' — ' + flights.length + ' flights</div>'
+    + '<div style="display:flex;gap:8px;font-size:0.67rem;color:#475569;margin-bottom:6px;flex-shrink:0">'
+    + '<span style="width:22px"></span><span style="width:80px">Date</span>'
+    + '<span style="width:50px">Dur</span><span style="flex:1">Aisle</span>'
+    + '<span style="color:#60a5fa;width:40px">Pre</span>'
+    + '<span style="color:#64748b;width:8px">→</span>'
+    + '<span style="color:#4ade80;width:40px">Post</span></div>'
+    + rows;
 }
 
 function onSiteChange() {
