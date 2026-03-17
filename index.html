@@ -625,7 +625,12 @@ function renderDashboard(missions, batteryMap) {
   }).join('');
 
   // Table
-  const sorted = [...missions].reverse();
+  const sorted = [...missions].sort((a, b) => {
+    const [am,ad,ay]=a.date.split('/').map(Number), [bm,bd,by]=b.date.split('/').map(Number);
+    const da = new Date(ay,am-1,ad), db = new Date(by,bm-1,bd);
+    if (da - db !== 0) return db - da; // newest date first
+    return (b.armTime||'00:00').localeCompare(a.armTime||'00:00'); // newest time first
+  });
   const tbody = document.getElementById('missionTable');
   let dayIndex = -1, lastDate = null;
   tbody.innerHTML = sorted.map(m => {
