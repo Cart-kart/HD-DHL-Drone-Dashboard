@@ -1139,22 +1139,22 @@ function renderBattHistory(battId) {
     const durStr = m.duration !== null ? m.duration + 'm' : '—';
     const preV  = m.charge  && m.charge  > 6 ? m.charge.toFixed(2)  + 'V' : '—';
     const postV = m.landingV && m.landingV > 6 ? m.landingV.toFixed(2) + 'V' : '—';
-    const vStr  = '<span style="color:#60a5fa">' + preV + '</span>'
-                + '<span style="color:#475569;margin:0 3px">→</span>'
-                + '<span style="color:#4ade80">' + postV + '</span>';
     return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span>'
       + '<span class="bh-date">' + m.date + '</span>'
       + '<span class="bh-dur">' + durStr + '</span>'
       + '<span class="bh-aisle">' + m.aisle + '</span>'
-      + '<span class="bh-v" style="width:120px">' + vStr + '</span></div>';
+      + '<span style="width:52px;flex-shrink:0;color:#60a5fa;text-align:right">' + preV + '</span>'
+      + '<span style="width:16px;flex-shrink:0;color:#475569;text-align:center">→</span>'
+      + '<span style="width:52px;flex-shrink:0;color:#4ade80">' + postV + '</span>'
+      + '</div>';
   }).join('');
   panel.innerHTML = '<div class="bh-title">Battery #' + battId + ' — ' + flights.length + ' flights</div>'
-    + '<div style="display:flex;gap:8px;font-size:0.67rem;color:#475569;margin-bottom:6px;flex-shrink:0">'
+    + '<div style="display:flex;font-size:0.67rem;color:#475569;margin-bottom:6px;flex-shrink:0">'
     + '<span style="width:22px"></span><span style="width:80px">Date</span>'
     + '<span style="width:50px">Dur</span><span style="flex:1">Aisle</span>'
-    + '<span style="color:#60a5fa;width:40px">Pre</span>'
-    + '<span style="color:#64748b;width:8px">→</span>'
-    + '<span style="color:#4ade80;width:40px">Post</span></div>'
+    + '<span style="color:#60a5fa;width:52px;text-align:right">Pre V</span>'
+    + '<span style="width:16px;text-align:center"></span>'
+    + '<span style="color:#4ade80;width:52px">Post V</span></div>'
     + rows;
 }
 
@@ -1264,7 +1264,7 @@ const FALLBACK_CSV = `Timestamp,ชื่อผู้ทำ Checklist,ตัว�
 3/11/2026 13:41:26,คุณอัง DHL,3. After Disarm Stat Check,เสร็จสิ้นภารกิจ,,1:23:00 PM,1:39:00 PM,78,3.81,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 3/11/2026 15:45:49,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,02,Checked,Checked,Checked,Checked,Checked,Checked,Checked,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),133,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,N02_PAI_PAJ,ใช่,4.15,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,`;
 
-const AUTO_REFRESH_SEC = 60; // 1 minute
+const AUTO_REFRESH_SEC = 300; // 5 minutes
 let countdownVal = AUTO_REFRESH_SEC;
 let countdownTimer = null;
 
