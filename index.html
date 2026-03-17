@@ -115,11 +115,6 @@
       <div class="chart-wrap"><canvas id="chartAisle"></canvas></div>
     </div>
   </div>
-  <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#f59e0b;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Aisle Duration Ranking</div>
-  <div class="chart-card" style="margin-bottom:14px">
-    <h3>Avg Mission Duration per Aisle (min)</h3>
-    <div class="chart-wrap" style="height:280px"><canvas id="chartAisleDur"></canvas></div>
-  </div>
   <div class="table-card" style="margin-bottom:14px">
     <h3>Aisle Duration Ranking (by avg duration, longest first)</h3>
     <div class="table-wrap">
@@ -505,7 +500,8 @@ function renderDashboard(missions, batteryMap) {
     }
   });
   const aislesSorted = Object.entries(aisleMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  renderAisleChart(aislesSorted.map(a => a[0]), aislesSorted.map(a => a[1]), aisleLastFlight);
+  // Build avg duration lookup from aisleDurRanked (computed later) — use a shared closure trick
+  window._pendingAisleChart = { labels: aislesSorted.map(a => a[0]), counts: aislesSorted.map(a => a[1]), lastFlight: aisleLastFlight };
 
   // Aisle duration ranking
   const aisleDurMap = {};
@@ -554,10 +550,15 @@ function renderDashboard(missions, batteryMap) {
       };
     })
     .sort((a, b) => b.avg - a.avg);
-  renderChart('chartAisleDur', 'bar',
-    aisleDurRanked.map(a => a.aisle),
-    aisleDurRanked.map(a => Math.round(a.avg)),
-    '#f59e0b', 'Avg Duration (min)', true);
+  // Render merged Top Aisles chart now that avg duration data is available
+  if (window._pendingAisleChart) {
+    const { labels, counts, lastFlight } = window._pendingAisleChart;
+    const durLookup = {};
+    aisleDurRanked.forEach(a => { durLookup[a.aisle] = Math.round(a.avg); });
+    const avgDurs = labels.map(l => durLookup[l] || 0);
+    renderAisleChart(labels, counts, avgDurs, lastFlight);
+    window._pendingAisleChart = null;
+  }
   const rankColor = i => i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#f97316' : '#64748b';
   document.getElementById('aisleDurTable').innerHTML = aisleDurRanked.map((a, i) => {
     const last5Badges = a.last5.map(item => {
@@ -809,14 +810,17 @@ function drawCalendar() {
 }
 
 
-function renderAisleChart(labels, data, lastFlightMap) {
+function renderAisleChart(labels, countData, avgDurData, lastFlightMap) {
   if (charts['chartAisle']) charts['chartAisle'].destroy();
   const ctx = document.getElementById('chartAisle').getContext('2d');
   charts['chartAisle'] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
-      datasets: [{ label: 'Flights', data, backgroundColor: '#a78bfacc', borderColor: '#a78bfa', borderWidth: 0 }]
+      datasets: [
+        { label: 'Flights', data: countData, backgroundColor: '#a78bfacc', borderColor: '#a78bfa', borderWidth: 0, xAxisID: 'x' },
+        { label: 'Avg Duration (min)', data: avgDurData, backgroundColor: '#f59e0bcc', borderColor: '#f59e0b', borderWidth: 0, xAxisID: 'x2' }
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -827,17 +831,18 @@ function renderAisleChart(labels, data, lastFlightMap) {
           callbacks: {
             label: ctx => {
               const aisle = ctx.chart.data.labels[ctx.dataIndex];
-              const count = ctx.parsed.x;
               const lf = lastFlightMap[aisle];
-              const lastStr = lf ? `  |  Last: ${lf.date}${lf.time && lf.time !== '—' ? ' ' + lf.time : ''}` : '';
-              return ` ${count} flights${lastStr}`;
+              const lastStr = lf ? `  Last: ${lf.date}${lf.time && lf.time !== '—' ? ' ' + lf.time : ''}` : '';
+              if (ctx.datasetIndex === 0) return ` ${ctx.parsed.x} flights  |  ${lastStr}`;
+              return ` ${ctx.parsed.x} min avg duration`;
             }
           }
         }
       },
       scales: {
-        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#334155' } },
-        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e3a5f22' } }
+        x:  { position: 'bottom', ticks: { color: '#a78bfa', font: { size: 10 } }, grid: { color: '#334155' }, title: { display: true, text: 'Flights', color: '#a78bfa', font: { size: 9 } } },
+        x2: { position: 'top',    ticks: { color: '#f59e0b', font: { size: 10 } }, grid: { display: false },  title: { display: true, text: 'Avg Duration (min)', color: '#f59e0b', font: { size: 9 } } },
+        y:  { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e3a5f22' } }
       }
     }
   });
