@@ -61,7 +61,7 @@
     <div style="font-size:0.65rem;color:#3b82f6;font-weight:600;letter-spacing:0.1em;">AVILON ROBOTICS</div>
     <h1>Drone Mission Dashboard</h1>
   </div>
-  <span>Photon 400 · DHL</span>
+  <span>Harley Davidson · DHL</span>
   <span id="data-source" style="font-size:0.7rem;color:#64748b;">connecting...</span>
   <span id="auto-refresh-indicator" style="font-size:0.7rem;color:#64748b;">next refresh in <strong id="countdown">5:00</strong></span>
   <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
@@ -79,6 +79,30 @@
     <div class="chart-card">
       <h3>Top Aisles Flown</h3>
       <div class="chart-wrap"><canvas id="chartAisle"></canvas></div>
+    </div>
+  </div>
+  <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#f59e0b;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Aisle Duration Ranking</div>
+  <div class="chart-card" style="margin-bottom:14px">
+    <h3>Avg Mission Duration per Aisle (min)</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="chartAisleDur"></canvas></div>
+  </div>
+  <div class="table-card" style="margin-bottom:14px">
+    <h3>Aisle Duration Ranking (by avg duration, longest first)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Aisle</th>
+            <th>Flight Count</th>
+            <th>Avg Duration</th>
+            <th>Min</th>
+            <th>Max</th>
+            <th>Last 5 Flights (min)</th>
+          </tr>
+        </thead>
+        <tbody id="aisleDurTable"></tbody>
+      </table>
     </div>
   </div>
   <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#3b82f6;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Battery Analytics</div>
@@ -421,6 +445,69 @@ function renderDashboard(missions, batteryMap) {
   const aislesSorted = Object.entries(aisleMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
   renderChart('chartAisle', 'bar', aislesSorted.map(a => a[0]), aislesSorted.map(a => a[1]), '#a78bfa', 'Flights', true);
 
+  // Aisle duration ranking
+  const aisleDurMap = {};
+  missions.forEach(m => {
+    if (m.aisle && m.aisle !== '—' && m.duration !== null) {
+      if (!aisleDurMap[m.aisle]) aisleDurMap[m.aisle] = { all: [], success: [], recent: [] };
+      aisleDurMap[m.aisle].all.push(m.duration);
+      aisleDurMap[m.aisle].recent.push(m.duration);
+      const isSuccess = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
+      if (isSuccess) aisleDurMap[m.aisle].success.push(m.duration);
+    }
+  });
+  const aisleDurRanked = Object.entries(aisleDurMap)
+    .map(([aisle, { all: durs, success: successDurs, recent }]) => {
+      // Gap-based outlier filter: sort ascending, find gaps > 5 min
+      // Everything below a gap > 5 is treated as a failed/outlier mission
+      const sorted = [...durs].sort((a, b) => a - b);
+      let cutIdx = 0;
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] - sorted[i - 1] > 5) cutIdx = i;
+      }
+      const validDurs = sorted.slice(cutIdx);
+      // Same gap filter applied to success-only for min
+      const sortedSuccess = [...(successDurs.length ? successDurs : durs)].sort((a, b) => a - b);
+      let cutIdxS = 0;
+      for (let i = 1; i < sortedSuccess.length; i++) {
+        if (sortedSuccess[i] - sortedSuccess[i - 1] > 5) cutIdxS = i;
+      }
+      const validMin = sortedSuccess.slice(cutIdxS);
+      const avg = validDurs.reduce((a,v) => a+v, 0) / validDurs.length;
+      const last5 = recent.slice(-5);
+      return {
+        aisle,
+        count: durs.length,
+        avg,
+        min: Math.min(...validMin),
+        max: Math.max(...validDurs),
+        total: validDurs.reduce((a,v) => a+v, 0),
+        last5
+      };
+    })
+    .sort((a, b) => b.avg - a.avg);
+  renderChart('chartAisleDur', 'bar',
+    aisleDurRanked.map(a => a.aisle),
+    aisleDurRanked.map(a => Math.round(a.avg)),
+    '#f59e0b', 'Avg Duration (min)', true);
+  const rankColor = i => i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#f97316' : '#64748b';
+  document.getElementById('aisleDurTable').innerHTML = aisleDurRanked.map((a, i) => {
+    const last5Badges = a.last5.map(v => {
+      const isOutlier = a.avg - v > 5;
+      const color = isOutlier ? '#f87171' : '#4ade80';
+      return `<span style="display:inline-block;background:#1e293b;border:1px solid ${color};color:${color};border-radius:4px;padding:1px 6px;font-size:0.72rem;margin:1px">${v}m</span>`;
+    }).join('');
+    return `<tr>
+    <td style="font-weight:700;color:${rankColor(i)}">#${i+1}</td>
+    <td style="font-weight:600;color:#e2e8f0">${a.aisle}</td>
+    <td>${a.count}</td>
+    <td><strong style="color:#f59e0b">${Math.round(a.avg)} min</strong></td>
+    <td style="color:#94a3b8">${a.min} min</td>
+    <td style="color:#94a3b8">${a.max} min</td>
+    <td>${last5Badges}</td>
+  </tr>`;
+  }).join('');
+
   // Battery remark
   document.getElementById('battRemark').innerHTML =
     `Full charge: <strong style="color:#4ade80">${CELL_FULL}V/cell = ${PACK_FULL.toFixed(1)}V (100%)</strong> &nbsp;·&nbsp; Depleted: <strong style="color:#f87171">${CELL_EMPTY}V/cell = ${PACK_EMPTY.toFixed(1)}V (0%)</strong> &nbsp;·&nbsp; e.g. 3.30V/cell ≈ 18% · 4.10V/cell ≈ 91%`;
@@ -492,7 +579,7 @@ function renderDashboard(missions, batteryMap) {
       <td>${m.rcOp.replace(' DHL','')}</td>
       <td>${m.drone}</td>
       <td>${m.aisle}</td>
-      <td>${m.batt}</td>
+      <td>#${m.batt}</td>
       <td>${m.logId}</td>
       <td>${m.charge ? fmtV(m.charge) : '—'}</td>
       <td>${fmtTime(m.armTime)}</td>
