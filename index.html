@@ -63,6 +63,15 @@
   .today-stat .ts-val { font-size: 1.6rem; font-weight: 700; line-height: 1; }
   .today-stat .ts-lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; margin-top: 3px; }
   .today-empty { color: #475569; font-size: 0.8rem; font-style: italic; text-align: center; padding: 20px 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .cal-head { text-align:center; font-size:0.65rem; color:#475569; font-weight:700; padding:3px 0; text-transform:uppercase; }
+  .cal-day { border-radius:6px; padding:4px 5px; min-height:46px; background:#0f172a; position:relative; }
+  .cal-day.has-data { background:#1e3a5f; cursor:default; }
+  .cal-day.today { outline:1.5px solid #f59e0b; }
+  .cal-day .cal-num { font-size:0.65rem; color:#475569; }
+  .cal-day.has-data .cal-num { color:#94a3b8; }
+  .cal-day .cal-count { font-size:1.1rem; font-weight:700; color:#60a5fa; text-align:center; margin-top:2px; }
+  .cal-day.empty-slot { background:transparent; }
   .tip { position: relative; cursor: default; }
   .tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #e2e8f0; font-size: 0.7rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; border: 1px solid #334155; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 99; }
   .tip:hover::after, .tip:focus::after { opacity: 1; }
@@ -90,9 +99,16 @@
   <div class="stats-grid" id="stats"></div>
   <div id="today-panel"></div>
   <div class="charts-grid">
-    <div class="chart-card">
-      <h3>Missions per Day</h3>
-      <div class="chart-wrap"><canvas id="chartDay"></canvas></div>
+    <div class="chart-card" id="cal-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <h3 style="margin:0">Missions per Day</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="cal-prev" onclick="calNav(-1)" style="background:#334155;border:none;color:#e2e8f0;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.85rem;">‹</button>
+          <span id="cal-label" style="font-size:0.78rem;color:#e2e8f0;min-width:90px;text-align:center;font-weight:600;"></span>
+          <button id="cal-next" onclick="calNav(1)" style="background:#334155;border:none;color:#e2e8f0;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.85rem;">›</button>
+        </div>
+      </div>
+      <div id="cal-grid"></div>
     </div>
     <div class="chart-card">
       <h3>Top Aisles Flown</h3>
@@ -469,7 +485,7 @@ function renderDashboard(missions, batteryMap) {
     return new Date(ay,am-1,ad) - new Date(by,bm-1,bd);
   });
   const dayVals = dayLabels.map(d => dayMap[d]);
-  renderChart('chartDay', 'bar', dayLabels, dayVals, '#3b82f6', 'Missions');
+  renderCalendar(dayMap);
 
 
   // Chart: Battery landing voltage over time
@@ -702,6 +718,74 @@ function filterMissionTable() {
       row.style.display = 'none';
     }
   });
+}
+
+
+let calDayMap = {};
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-based
+
+function renderCalendar(dayMap) {
+  calDayMap = dayMap;
+  // Default to most recent data month if available
+  const dates = Object.keys(dayMap);
+  if (dates.length) {
+    const latest = dates.reduce((a,b) => {
+      const [am,ad,ay]=a.split('/').map(Number), [bm,bd,by]=b.split('/').map(Number);
+      return new Date(ay,am-1,ad) > new Date(by,bm-1,bd) ? a : b;
+    });
+    const [lm,,ly] = latest.split('/').map(Number);
+    calMonth = lm - 1;
+    calYear = ly;
+  }
+  drawCalendar();
+}
+
+function calNav(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  drawCalendar();
+}
+
+function drawCalendar() {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cal-label').textContent = monthNames[calMonth] + ' ' + calYear;
+
+  const today = new Date();
+  const firstDay = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+
+  // find max flights in this month for color scaling
+  let maxFlights = 1;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${calMonth+1}/${d}/${calYear}`;
+    if (calDayMap[key] && calDayMap[key] > maxFlights) maxFlights = calDayMap[key];
+  }
+
+  let html = '<div class="cal-grid">';
+  // Day headers
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+    html += `<div class="cal-head">${d}</div>`;
+  });
+  // Empty slots before first day
+  for (let i = 0; i < firstDay; i++) html += '<div class="cal-day empty-slot"></div>';
+  // Day cells
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${calMonth+1}/${d}/${calYear}`;
+    const count = calDayMap[key] || 0;
+    const isToday = today.getFullYear()===calYear && today.getMonth()===calMonth && today.getDate()===d;
+    const intensity = count ? Math.round(40 + (count/maxFlights)*215) : 0;
+    const bg = count ? `rgba(59,130,246,${0.15 + (count/maxFlights)*0.7})` : '#0f172a';
+    const todayClass = isToday ? ' today' : '';
+    const hasClass = count ? ' has-data' : '';
+    html += `<div class="cal-day${hasClass}${todayClass}" style="background:${bg}">
+      <div class="cal-num">${d}</div>
+      ${count ? `<div class="cal-count">${count}</div>` : ''}
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('cal-grid').innerHTML = html;
 }
 
 function renderChart(id, type, labels, data, color, label, horizontal = false) {
