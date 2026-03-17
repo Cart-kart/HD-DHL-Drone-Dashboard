@@ -72,6 +72,11 @@
   .cal-day.has-data .cal-num { color:#94a3b8; }
   .cal-day .cal-count { font-size:1.1rem; font-weight:700; color:#60a5fa; text-align:center; margin-top:2px; }
   .cal-day.empty-slot { background:transparent; }
+  .cal-day.selected { outline: 2px solid #60a5fa; outline-offset: -1px; }
+  .cal-day.has-data { cursor: pointer; }
+  .cal-day.has-data:hover { filter: brightness(1.2); }
+  #cal-today-btn { background:#1e3a5f;border:1px solid #3b82f6;color:#60a5fa;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;display:none; }
+  #cal-today-btn:hover { background:#2d4f7c; }
   .tip { position: relative; cursor: default; }
   .tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #e2e8f0; font-size: 0.7rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; border: 1px solid #334155; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 99; }
   .tip:hover::after, .tip:focus::after { opacity: 1; }
@@ -106,6 +111,7 @@
           <button id="cal-prev" onclick="calNav(-1)" style="background:#334155;border:none;color:#e2e8f0;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.85rem;">‹</button>
           <span id="cal-label" style="font-size:0.78rem;color:#e2e8f0;min-width:90px;text-align:center;font-weight:600;"></span>
           <button id="cal-next" onclick="calNav(1)" style="background:#334155;border:none;color:#e2e8f0;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.85rem;">›</button>
+          <button id="cal-today-btn" onclick="calClearSelection()">✕ Today</button>
         </div>
       </div>
       <div id="cal-grid"></div>
@@ -482,7 +488,7 @@ function renderDashboard(missions, batteryMap) {
     return new Date(ay,am-1,ad) - new Date(by,bm-1,bd);
   });
   const dayVals = dayLabels.map(d => dayMap[d]);
-  renderCalendar(dayMap);
+  renderCalendar(dayMap, missions);
 
 
   // Chart: Battery landing voltage over time
@@ -687,19 +693,28 @@ function renderDashboard(missions, batteryMap) {
   sel.innerHTML = '<option value="">All drones</option>' + droneNames.map(d => `<option value="${d}">${d}</option>`).join('');
   if (prev) sel.value = prev;
 
-  renderToday(missions);
+  renderFlightsPanel(selectedCalDate);
   document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
 }
 
 
-function renderToday(missions) {
+function renderFlightsPanel(dateStr) {
+  const missions = calAllMissions;
   const today = new Date();
   const todayStr = `${today.getMonth()+1}/${today.getDate()}/${today.getFullYear()}`;
-  const todayMissions = missions.filter(m => m.date === todayStr);
+  const targetDate = dateStr || todayStr;
+  const isToday = targetDate === todayStr;
+  const todayMissions = missions.filter(m => m.date === targetDate);
   const panel = document.getElementById('today-panel');
-  const label = today.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  let label;
+  if (isToday) {
+    label = today.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  } else {
+    const [tm,td,ty] = targetDate.split('/').map(Number);
+    label = new Date(ty,tm-1,td).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  }
 
   if (todayMissions.length === 0) {
     panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">Today\'s Flights</div><div class="today-date">${label}</div></div><div class="today-empty">No flights recorded today yet.</div></div>`;
@@ -745,9 +760,12 @@ function filterMissionTable() {
 let calDayMap = {};
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth(); // 0-based
+let calAllMissions = [];
+let selectedCalDate = null;
 
-function renderCalendar(dayMap) {
+function renderCalendar(dayMap, missions) {
   calDayMap = dayMap;
+  if (missions) calAllMissions = missions;
   // Default to most recent data month if available
   const dates = Object.keys(dayMap);
   if (dates.length) {
@@ -760,6 +778,21 @@ function renderCalendar(dayMap) {
     calYear = ly;
   }
   drawCalendar();
+}
+
+
+function calSelectDate(dateStr) {
+  selectedCalDate = dateStr;
+  drawCalendar();
+  document.getElementById('cal-today-btn').style.display = 'inline-block';
+  renderFlightsPanel(dateStr);
+}
+
+function calClearSelection() {
+  selectedCalDate = null;
+  drawCalendar();
+  document.getElementById('cal-today-btn').style.display = 'none';
+  renderFlightsPanel(null);
 }
 
 function calNav(dir) {
@@ -800,7 +833,9 @@ function drawCalendar() {
     const bg = count ? `rgba(59,130,246,${0.15 + (count/maxFlights)*0.7})` : '#0f172a';
     const todayClass = isToday ? ' today' : '';
     const hasClass = count ? ' has-data' : '';
-    html += `<div class="cal-day${hasClass}${todayClass}" style="background:${bg}">
+    const clickAttr = count ? ` onclick="calSelectDate('${calMonth+1}/${d}/${calYear}')"` : '';
+    const selClass = selectedCalDate === `${calMonth+1}/${d}/${calYear}` ? ' selected' : '';
+    html += `<div class="cal-day${hasClass}${todayClass}${selClass}" style="background:${bg}"${clickAttr}>
       <div class="cal-num">${d}</div>
       ${count ? `<div class="cal-count">${count}</div>` : ''}
     </div>`;
