@@ -472,13 +472,18 @@ function renderDashboard(missions, batteryMap) {
   const battVoltages = missions.filter(m => m.landingV && m.landingV > 6);
   const avgBatt = battVoltages.length ? (battVoltages.reduce((s, m) => s + m.landingV, 0) / battVoltages.length).toFixed(2) : '—';
 
+  const totalFlightMins = missions.filter(m => m.duration !== null).reduce((s, m) => s + m.duration, 0);
+  const totalH = Math.floor(totalFlightMins / 60);
+  const totalM = totalFlightMins % 60;
+  const totalFlightStr = totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`;
+
   document.getElementById('stats').innerHTML = `
     <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with result · ${noData} no data</div></div>
     <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of confirmed flights</div></div>
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => o.replace(' DHL','')).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
-    <div class="card"><div class="label">Avg Landing V</div><div class="value">${avgBatt}<span style="font-size:1rem;color:#94a3b8"> V</span></div><div class="sub">${avgBatt !== '—' ? cellV(parseFloat(avgBatt))+'V/cell · 6S' : 'battery at disarm'}</div></div>
+    <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} missions with duration</div></div>
   `;
 
   // Chart: Missions per day
