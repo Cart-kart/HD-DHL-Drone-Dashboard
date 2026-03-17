@@ -63,6 +63,8 @@
   .today-stat .ts-val { font-size: 1.6rem; font-weight: 700; line-height: 1; }
   .today-stat .ts-lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; margin-top: 3px; }
   .today-empty { color: #475569; font-size: 0.8rem; font-style: italic; text-align: center; padding: 20px 0; }
+  .badge.flying { background: #1c3a2a; color: #34d399; border: 1px solid #34d399; animation: flypulse 1.4s infinite; }
+  @keyframes flypulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
 
 </style>
 </head>
@@ -416,6 +418,21 @@ function processData(rows) {
   renderDashboard(missions, batteryMap);
 }
 
+
+function isFlying(m) {
+  if (m.hasResult) return false;
+  if (!m.armTime || m.armTime === '—') return false;
+  // parse date "M/D/YYYY" + armTime "HH:MM"
+  const parts = m.date.split('/');
+  if (parts.length < 3) return false;
+  const [mon, day, yr] = parts;
+  const [hh, mm] = m.armTime.split(':');
+  const takeoff = new Date(parseInt(yr), parseInt(mon)-1, parseInt(day), parseInt(hh), parseInt(mm));
+  const now = new Date();
+  const elapsed = (now - takeoff) / 60000; // minutes
+  return elapsed >= 0 && elapsed <= 35;
+}
+
 function renderDashboard(missions, batteryMap) {
   // Stats
   const total = missions.length;
@@ -580,17 +597,25 @@ function renderDashboard(missions, batteryMap) {
     const color = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
     let statusCell, noteCell;
     if (!m.hasResult) {
-      statusCell = `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`;
-      noteCell = `<span style="color:#475569;font-style:italic">no mission complete data</span>`;
+      if (isFlying(m)) {
+        statusCell = `<span class="badge flying">In Flight</span>`;
+        noteCell = `<span style="color:#34d399;font-style:italic">mission in progress</span>`;
+      } else {
+        statusCell = `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`;
+        noteCell = `<span style="color:#475569;font-style:italic">no mission complete data</span>`;
+      }
     } else {
       statusCell = `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
       noteCell = `<span style="color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${m.reason}">${m.reason || ''}</span>`;
     }
     const aborted = m.hasResult && !ok;
+    const flying = isFlying(m);
     const dayBg = dayIndex % 2 === 0 ? '#0d1526' : '#1a2640';
     const rowStyle = aborted
       ? 'background:#2d0a0a;border-left:3px solid #ef4444;'
-      : !m.hasResult ? `background:${dayBg};opacity:0.6;` : `background:${dayBg};`;
+      : flying ? 'background:#0d2218;border-left:3px solid #34d399;'
+      : !m.hasResult ? `background:${dayBg};opacity:0.6;`
+      : `background:${dayBg};`;
     return `<tr style="${rowStyle}">
       <td>${m.date}</td>
       <td>${fmtTime(m.armTime)}</td>
@@ -646,7 +671,9 @@ function renderToday(missions) {
     const pct = bv ? pctFull(m.landingV) : 0;
     const col = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
     const badge = !m.hasResult
-      ? `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`
+      ? (isFlying(m)
+          ? `<span class="badge flying">In Flight</span>`
+          : `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`)
       : `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
     const rowBg = !m.hasResult ? '#0f1a2e' : ok ? '#0d1f1a' : '#2d0a0a';
     const landingCell = bv ? `<span class="battery-bar"><span class="battery-fill" style="width:${pct}%;background:${col}"></span></span><span style="color:${col}">${pct}%</span>` : '\u2014';
