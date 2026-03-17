@@ -171,8 +171,12 @@
   </div>
   <div class="aisle-overview-grid">
     <div class="table-card">
-      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
         <h3 style="margin:0">All Aisles Overview</h3>
+        <select id="aisle-sort" onchange="renderAisleOverview(this.value)" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:0.72rem;cursor:pointer;">
+          <option value="asc">Least first</option>
+          <option value="desc">Top first</option>
+        </select>
         <span style="font-size:0.67rem;color:#475569;font-style:italic">&#9654; Click an aisle to see history</span>
       </div>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;font-size:0.68rem;color:#64748b;">
@@ -687,28 +691,10 @@ function renderDashboard(missions, batteryMap) {
   </tr>`;
   }).join('');
 
-  // All Aisles Overview with heatmap
-  const allAisleEntries = Object.entries(aisleMap).sort((a, b) => a[1] - b[1]);
-  const aisleMin = allAisleEntries.length ? allAisleEntries[0][1] : 0;
-  const aisleMax = allAisleEntries.length ? allAisleEntries[allAisleEntries.length-1][1] : 1;
+  // All Aisles Overview — store globally then render
   window._lastAisleMap = aisleMap;
   window._lastAisleLastFlight = aisleLastFlight;
-  document.getElementById('aisleOverviewBody').innerHTML = allAisleEntries.map(([aisle, cnt], i) => {
-    const lf = aisleLastFlight[aisle];
-    const lastStr = lf ? lf.date + (lf.time && lf.time !== '—' ? ' ' + lf.time : '') : '—';
-    const t = aisleMax > aisleMin ? (cnt - aisleMin) / (aisleMax - aisleMin) : 0.5;
-    const r = Math.round(251 + (74  - 251) * t);
-    const g = Math.round(191 + (222 - 191) * t);
-    const b = Math.round(36  + (128 - 36)  * t);
-    const col = `rgb(${r},${g},${b})`;
-    const rowBg = `rgba(${r},${g},${b},0.07)`;
-    return `<tr onclick="renderAisleHistory('${aisle.replace(/'/g,"\'")}', this)" style="background:${rowBg}">`
-      + `<td style="color:#475569;font-size:0.72rem">${i+1}</td>`
-      + `<td style="font-weight:600;color:${col};cursor:pointer">${aisle}</td>`
-      + `<td><span class="heat-bar" style="width:${Math.round(8 + t*40)}px;background:${col}"></span><strong style="color:${col}">${cnt}</strong></td>`
-      + `<td style="color:#64748b;font-size:0.72rem">${lastStr}</td>`
-      + `</tr>`;
-  }).join('');
+  renderAisleOverview((document.getElementById('aisle-sort') || {}).value || 'asc');
 
   // Battery remark
   document.getElementById('battRemark').innerHTML =
@@ -1071,6 +1057,31 @@ function renderLineChart(id, labels, data) {
       }
     }
   });
+}
+
+function renderAisleOverview(dir) {
+  const aisleMap = window._lastAisleMap || {};
+  const aisleLastFlight = window._lastAisleLastFlight || {};
+  const entries = Object.entries(aisleMap).sort((a, b) => dir === 'desc' ? b[1] - a[1] : a[1] - b[1]);
+  const min = entries.length ? entries[0][1] : 0;
+  const max = entries.length ? entries[entries.length - 1][1] : 1;
+  // heatmap always: fewest = yellow, most = green regardless of sort order
+  document.getElementById('aisleOverviewBody').innerHTML = entries.map(([aisle, cnt], i) => {
+    const lf = aisleLastFlight[aisle];
+    const lastStr = lf ? lf.date + (lf.time && lf.time !== '—' ? ' ' + lf.time : '') : '—';
+    const t = max > min ? (cnt - min) / (max - min) : 0.5;
+    const r = Math.round(251 + (74  - 251) * t);
+    const g = Math.round(191 + (222 - 191) * t);
+    const b = Math.round(36  + (128 - 36)  * t);
+    const col = `rgb(${r},${g},${b})`;
+    const rowBg = `rgba(${r},${g},${b},0.07)`;
+    return `<tr onclick="renderAisleHistory('${aisle.replace(/'/g,"\\'")}', this)" style="background:${rowBg}">`
+      + `<td style="color:#475569;font-size:0.72rem">${i + 1}</td>`
+      + `<td style="font-weight:600;color:${col};cursor:pointer">${aisle}</td>`
+      + `<td><span class="heat-bar" style="width:${Math.round(8 + t * 40)}px;background:${col}"></span><strong style="color:${col}">${cnt}</strong></td>`
+      + `<td style="color:#64748b;font-size:0.72rem">${lastStr}</td>`
+      + `</tr>`;
+  }).join('');
 }
 
 function renderAisleHistory(aisleId, rowEl) {
