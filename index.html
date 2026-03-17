@@ -63,6 +63,9 @@
   .today-stat .ts-val { font-size: 1.6rem; font-weight: 700; line-height: 1; }
   .today-stat .ts-lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; margin-top: 3px; }
   .today-empty { color: #475569; font-size: 0.8rem; font-style: italic; text-align: center; padding: 20px 0; }
+  .tip { position: relative; cursor: default; }
+  .tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #e2e8f0; font-size: 0.7rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; border: 1px solid #334155; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 99; }
+  .tip:hover::after, .tip:focus::after { opacity: 1; }
   .badge.flying { background: #1c3a2a; color: #34d399; border: 1px solid #34d399; animation: flypulse 1.4s infinite; }
   @keyframes flypulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
 
@@ -482,7 +485,7 @@ function renderDashboard(missions, batteryMap) {
     if (m.aisle && m.aisle !== '—' && m.duration !== null) {
       if (!aisleDurMap[m.aisle]) aisleDurMap[m.aisle] = { all: [], success: [], recent: [] };
       aisleDurMap[m.aisle].all.push(m.duration);
-      aisleDurMap[m.aisle].recent.push(m.duration);
+      aisleDurMap[m.aisle].recent.push({ dur: m.duration, date: m.date, time: m.armTime });
       const isSuccess = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
       if (isSuccess) aisleDurMap[m.aisle].success.push(m.duration);
     }
@@ -523,10 +526,12 @@ function renderDashboard(missions, batteryMap) {
     '#f59e0b', 'Avg Duration (min)', true);
   const rankColor = i => i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#f97316' : '#64748b';
   document.getElementById('aisleDurTable').innerHTML = aisleDurRanked.map((a, i) => {
-    const last5Badges = a.last5.map(v => {
+    const last5Badges = a.last5.map(item => {
+      const v = item.dur;
       const isOutlier = a.avg - v > 5;
       const color = isOutlier ? '#f87171' : '#4ade80';
-      return `<span style="display:inline-block;background:#1e293b;border:1px solid ${color};color:${color};border-radius:4px;padding:1px 6px;font-size:0.72rem;margin:1px">${v}m</span>`;
+      const tip = (item.date && item.time && item.time !== '—') ? `${item.date} ${item.time}` : item.date || '';
+      return `<span class="tip" data-tip="${tip}" tabindex="0" style="display:inline-block;background:#1e293b;border:1px solid ${color};color:${color};border-radius:4px;padding:1px 6px;font-size:0.72rem;margin:1px">${v}m</span>`;
     }).join('');
     const extraFlights = a.count - 5;
     const extraBadge = extraFlights > 0
