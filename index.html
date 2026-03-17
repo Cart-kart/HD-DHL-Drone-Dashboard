@@ -52,6 +52,18 @@
   .battery-bar { display: inline-block; width: 40px; height: 8px; background: #334155; border-radius: 4px; vertical-align: middle; margin-right: 4px; overflow: hidden; }
   .battery-fill { height: 100%; border-radius: 4px; }
   #last-updated { font-size: 0.7rem; color: #475569; margin-top: 12px; text-align: right; }
+  .today-panel { background: #1e293b; border: 1.5px solid #f59e0b; border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 0 18px #f59e0b22; }
+  .today-panel .today-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .today-panel .today-title { font-size: 0.75rem; font-weight: 700; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.1em; }
+  .today-panel .today-date { font-size: 0.72rem; color: #64748b; }
+  .today-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; animation: pulse 1.6s infinite; flex-shrink: 0; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+  .today-stats { display: flex; gap: 20px; margin-bottom: 14px; flex-wrap: wrap; }
+  .today-stat { text-align: center; }
+  .today-stat .ts-val { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+  .today-stat .ts-lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; margin-top: 3px; }
+  .today-empty { color: #475569; font-size: 0.8rem; font-style: italic; text-align: center; padding: 20px 0; }
+
 </style>
 </head>
 <body>
@@ -71,6 +83,7 @@
 
 <div class="main" id="dashboard" style="display:none">
   <div class="stats-grid" id="stats"></div>
+  <div id="today-panel"></div>
   <div class="charts-grid">
     <div class="chart-card">
       <h3>Missions per Day</h3>
@@ -152,6 +165,7 @@
         <thead>
           <tr>
             <th>Date</th>
+            <th>Arm Time</th>
             <th>Operator</th>
             <th>RC Pilot</th>
             <th>Drone</th>
@@ -575,6 +589,7 @@ function renderDashboard(missions, batteryMap) {
       : !m.hasResult ? `background:${dayBg};opacity:0.6;` : `background:${dayBg};`;
     return `<tr style="${rowStyle}">
       <td>${m.date}</td>
+      <td>${fmtTime(m.armTime)}</td>
       <td>${m.person.replace(' DHL','')}</td>
       <td>${m.rcOp.replace(' DHL','')}</td>
       <td>${m.drone}</td>
@@ -598,9 +613,43 @@ function renderDashboard(missions, batteryMap) {
   sel.innerHTML = '<option value="">All drones</option>' + droneNames.map(d => `<option value="${d}">${d}</option>`).join('');
   if (prev) sel.value = prev;
 
+  renderToday(missions);
   document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
+}
+
+
+function renderToday(missions) {
+  const today = new Date();
+  const todayStr = `${today.getMonth()+1}/${today.getDate()}/${today.getFullYear()}`;
+  const todayMissions = missions.filter(m => m.date === todayStr);
+  const panel = document.getElementById('today-panel');
+  const label = today.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  if (todayMissions.length === 0) {
+    panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">Today\'s Flights</div><div class="today-date">${label}</div></div><div class="today-empty">No flights recorded today yet.</div></div>`;
+    return;
+  }
+
+  const done = todayMissions.filter(m => m.completed.includes('\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e2a\u0e34\u0e49\u0e19') && !m.completed.includes('\u0e44\u0e21\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08')).length;
+  const failed = todayMissions.filter(m => m.hasResult && m.completed.includes('\u0e44\u0e21\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08')).length;
+  const nodata = todayMissions.filter(m => !m.hasResult).length;
+
+  const rows = todayMissions.map(m => {
+    const ok = m.completed.includes('\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e2a\u0e34\u0e49\u0e19') && !m.completed.includes('\u0e44\u0e21\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08');
+    const bv = m.landingV && m.landingV > 6;
+    const pct = bv ? pctFull(m.landingV) : 0;
+    const col = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
+    const badge = !m.hasResult
+      ? `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #334155">No data</span>`
+      : `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
+    const rowBg = !m.hasResult ? '#0f1a2e' : ok ? '#0d1f1a' : '#2d0a0a';
+    const landingCell = bv ? `<span class="battery-bar"><span class="battery-fill" style="width:${pct}%;background:${col}"></span></span><span style="color:${col}">${pct}%</span>` : '\u2014';
+    return `<tr style="background:${rowBg}"><td>${fmtTime(m.armTime)}</td><td>${m.rcOp.replace(' DHL','')}</td><td>${m.drone}</td><td>${m.aisle}</td><td>#${m.batt}</td><td>${formatDuration(m.duration)}</td><td>${landingCell}</td><td>${badge}</td></tr>`;
+  }).join('');
+
+  panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">Today\'s Flights</div><div class="today-date">${label}</div></div><div class="today-stats"><div class="today-stat"><div class="ts-val" style="color:#60a5fa">${todayMissions.length}</div><div class="ts-lbl">Flights</div></div><div class="today-stat"><div class="ts-val" style="color:#4ade80">${done}</div><div class="ts-lbl">Completed</div></div><div class="today-stat"><div class="ts-val" style="color:#f87171">${failed}</div><div class="ts-lbl">Aborted</div></div><div class="today-stat"><div class="ts-val" style="color:#64748b">${nodata}</div><div class="ts-lbl">No data</div></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>RC Pilot</th><th>Drone</th><th>Aisle</th><th>Battery</th><th>Duration</th><th>Landing</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 function filterMissionTable() {
