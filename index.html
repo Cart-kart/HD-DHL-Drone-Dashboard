@@ -85,6 +85,16 @@
   .badge.assumed { background: #1a2e1a; color: #86efac; border: 1px dashed #4ade80; }
   @keyframes flypulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
 
+  #batt-history-panel { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; height: 220px; overflow-y: auto; display: flex; flex-direction: column; }
+  #batt-history-panel .bh-empty { color: #475569; font-size: 0.78rem; font-style: italic; margin: auto; text-align: center; }
+  #batt-history-panel .bh-title { font-size: 0.72rem; color: #f59e0b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .bh-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid #1e293b; font-size: 0.73rem; color: #94a3b8; }
+  .bh-row:first-of-type { border-top: none; }
+  .bh-idx { color: #475569; width: 22px; flex-shrink: 0; }
+  .bh-date { color: #64748b; width: 80px; flex-shrink: 0; }
+  .bh-dur { color: #60a5fa; width: 50px; flex-shrink: 0; }
+  .bh-aisle { color: #e2e8f0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bh-v { color: #4ade80; width: 55px; flex-shrink: 0; text-align: right; }
 </style>
 </head>
 <body>
@@ -97,7 +107,10 @@
   <span>Harley Davidson · DHL</span>
   <span id="data-source" style="font-size:0.7rem;color:#64748b;">connecting...</span>
   <span id="auto-refresh-indicator" style="font-size:0.7rem;color:#64748b;">next refresh in <strong id="countdown">1:00</strong></span>
-  <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
+  <select id="site-select" onchange="onSiteChange()" style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 12px;font-size:0.78rem;cursor:pointer;margin-left:auto;">
+    <option value="dhl">DHL Warehouse</option>
+  </select>
+  <button id="refresh-btn" onclick="loadData()" style="margin-left:0">↺ Refresh</button>
 </header>
 
 <div id="loading">Loading mission data...</div>
@@ -142,6 +155,22 @@
       </table>
     </div>
   </div>
+  <div class="table-card" style="margin-bottom:14px">
+    <h3>Top 5 Least Flown Aisles</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Aisle</th>
+            <th>Flight Count</th>
+            <th>Last Flight</th>
+          </tr>
+        </thead>
+        <tbody id="leastAisleTable"></tbody>
+      </table>
+    </div>
+  </div>
   <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#3b82f6;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Battery Analytics</div>
   <div id="battRemark" style="margin-bottom:12px;font-size:0.72rem;color:#64748b;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 14px;"></div>
   <div class="charts-grid" style="margin-bottom:14px">
@@ -150,8 +179,8 @@
       <div class="chart-wrap"><canvas id="chartBattUse"></canvas></div>
     </div>
     <div class="chart-card">
-      <h3>Avg Landing Voltage per Battery (V)</h3>
-      <div class="chart-wrap"><canvas id="chartBattAvg"></canvas></div>
+      <h3>Battery History <span id="batt-history-title" style="color:#f59e0b;font-weight:700"></span></h3>
+      <div id="batt-history-panel"><div class="bh-empty">Click a battery bar to see flight history</div></div>
     </div>
   </div>
   <div class="table-card" style="margin-bottom:14px">
@@ -318,36 +347,52 @@ function fmtTime(timeStr) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// Aisle master lookup — number → full canonical name
+// Aisle master lookup — number → full canonical name (N-series and E-series)
 const AISLE_MAP = {
-   1: 'N01_PAK_PAL',
-   2: 'N02_PAI_PAJ',
-   3: 'N03_PAG_PAH',
-   4: 'N04_PAE_PAF',
-   5: 'N05_PAC_PAD',
-   6: 'N06_PAA_PAB',
-   7: 'N07_VBK_VBL',
-   8: 'N08_VBI_VBJ',
-   9: 'N09_VBG_VBH',
-  10: 'N10_VBE_VBF',
-  11: 'N11_VBC_VBD',
-  12: 'N12_VBA_VBB',
-  13: 'N13_VAQ_VAR',
-  14: 'N14_VAO_VAP',
-  15: 'N15_VAM_VAN',
-  16: 'N16_VAK_VAL',
-  17: 'N17_VAI_VAJ',
-  18: 'N18_VAG_VAH',
-  19: 'N19_VAE_VAF',
-  20: 'N20_VAC_VAD',
-  21: 'N21_VAA_VAB',
+   1: 'N01_PAK_PAL',   2: 'N02_PAI_PAJ',   3: 'N03_PAG_PAH',
+   4: 'N04_PAE_PAF',   5: 'N05_PAC_PAD',   6: 'N06_PAA_PAB',
+   7: 'N07_VBK_VBL',   8: 'N08_VBI_VBJ',   9: 'N09_VBG_VBH',
+  10: 'N10_VBE_VBF',  11: 'N11_VBC_VBD',  12: 'N12_VBA_VBB',
+  13: 'N13_VAQ_VAR',  14: 'N14_VAO_VAP',  15: 'N15_VAM_VAN',
+  16: 'N16_VAK_VAL',  17: 'N17_VAI_VAJ',  18: 'N18_VAG_VAH',
+  19: 'N19_VAE_VAF',  20: 'N20_VAC_VAD',  21: 'N21_VAA_VAB',
+  22: 'N22_VDE_VDF_P1', 23: 'N23_VDE_VDF_P2', 24: 'N24_VDG_P1',
+  25: 'N25_VDG_P2',   26: 'N26_VDH_VDI_P1', 27: 'N27_VDH_VDI_P2',
+  28: 'N28_VDL_VDM_P1', 29: 'N29_VDL_VDM_P2', 30: 'N30_VDO',
+  31: 'N31_VDP_P1',   32: 'N32_VDP_P2',   33: 'N33_VDQ_VDP',
+  34: 'N34_VDL_P3',
+};
+const AISLE_MAP_E = {
+   1: 'E01_EBA_P1',   2: 'E02_EBA_P2',   3: 'E03_EBA_P3',
+   4: 'E04_EBA_P4',   5: 'E05_EBB_P1',   6: 'E06_EBB_P2',
+   7: 'E07_EBC_EBD_P1', 8: 'E08_EBC_EBD_P2', 9: 'E09_EBE_EBF_P1',
+  10: 'E10_EBE_EBF_P2', 11: 'E11_EBG_P1', 12: 'E12_EBG_P2',
+  13: 'E13_EBH_EBI_P1', 14: 'E14_EBH_EBI_P2', 15: 'E15_EBJ_EBK_P1',
+  16: 'E16_EBJ_EBK_P2', 17: 'E17_EBL_EBM_P1', 18: 'E18_EBL_EBM_P2',
+  19: 'E19_EBN_EBO_P1', 20: 'E20_EBN_EBO_P2', 21: 'E21_EBP_EBQ_P1',
+  22: 'E22_EBP_EBQ_P2', 23: 'E23_EBR_P1', 24: 'E24_EBR_P2',
+  25: 'E25_EBS_P1',  26: 'E26_EBS_P2',  27: 'E27_EAA_EAB_P1',
+  28: 'E28_EAA_EAB_P2', 29: 'E29_EAC_EAD_P1', 30: 'E30_EAC_EAD_P2',
+  31: 'E31_EAE_EAF_P1', 32: 'E32_EAE_EAF_P2', 33: 'E33_EAG_P1',
+  34: 'E34_EAG_P2',  35: 'E35_EAH_EAI_P1', 36: 'E36_EAH_EAI_P2',
+  37: 'E37_EAI_P3',  38: 'E38_EAJ_EAK_P1', 39: 'E39_EAJ_EAK_P2',
+  40: 'E40_EAL_EAM_P1', 41: 'E41_EAL_EAM_P2', 42: 'E42_EAN_EAO_P1',
+  43: 'E43_EAN_EAO_P2', 44: 'E44_EAP_EAQ_P1', 45: 'E45_EAP_EAQ_P2',
+  46: 'E46_EAR_EAS_P1', 47: 'E47_EAR_EAS_P2', 48: 'E48_EAS_P3',
+  49: 'E49_EAS_P4',
 };
 
 function normalizeAisle(raw) {
   if (!raw || raw === '—') return '—';
-  const m = raw.trim().match(/[Nn][Oo]?\.?\s*0*(\d+)/);
-  if (!m) return raw.trim();
-  const num = parseInt(m[1]);
+  const s = raw.trim();
+  const eMatch = s.match(/^[Ee][Oo]?\.?\s*0*(\d+)/);
+  if (eMatch) {
+    const num = parseInt(eMatch[1]);
+    return AISLE_MAP_E[num] || ('E' + String(num).padStart(2, '0'));
+  }
+  const nMatch = s.match(/[Nn][Oo]?\.?\s*0*(\d+)/);
+  if (!nMatch) return s;
+  const num = parseInt(nMatch[1]);
   return AISLE_MAP[num] || ('N' + String(num).padStart(2, '0'));
 }
 
@@ -473,6 +518,15 @@ function isFlying(m) {
   return elapsed >= 0 && elapsed <= 35;
 }
 
+// Convert arm time string (either "H:MM AM/PM" or "HH:MM" 24h) to minutes
+function armMins(t) {
+  if (!t || t === '—') return 0;
+  const ampm = parseMissionTime(t);
+  if (ampm !== null) return ampm;
+  const hm = t.match(/^(\d{1,2}):(\d{2})/);
+  return hm ? parseInt(hm[1]) * 60 + parseInt(hm[2]) : 0;
+}
+
 function renderDashboard(missions, batteryMap) {
   // Stats
   const total = missions.length;
@@ -578,7 +632,8 @@ function renderDashboard(missions, batteryMap) {
         last5
       };
     })
-    .sort((a, b) => b.avg - a.avg);
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 10);
   // Render merged Top Aisles chart now that avg duration data is available
   if (window._pendingAisleChart) {
     const { labels, counts, lastFlight } = window._pendingAisleChart;
@@ -612,6 +667,14 @@ function renderDashboard(missions, batteryMap) {
   </tr>`;
   }).join('');
 
+  // Top 5 least flown aisles
+  const allAisleFlown = Object.entries(aisleMap).sort((a, b) => a[1] - b[1]).slice(0, 5);
+  document.getElementById('leastAisleTable').innerHTML = allAisleFlown.map(([aisle, cnt], i) => {
+    const lf = aisleLastFlight[aisle];
+    const lastStr = lf ? lf.date + (lf.time && lf.time !== '—' ? ' ' + lf.time : '') : '—';
+    return '<tr><td style="font-weight:700;color:#64748b">#' + (i+1) + '</td><td style="font-weight:600;color:#e2e8f0">' + aisle + '</td><td><strong style="color:#f87171">' + cnt + '</strong></td><td style="color:#64748b">' + lastStr + '</td></tr>';
+  }).join('');
+
   // Battery remark
   document.getElementById('battRemark').innerHTML =
     `Full charge: <strong style="color:#4ade80">${CELL_FULL}V/cell = ${PACK_FULL.toFixed(1)}V (100%)</strong> &nbsp;·&nbsp; Depleted: <strong style="color:#f87171">${CELL_EMPTY}V/cell = ${PACK_EMPTY.toFixed(1)}V (0%)</strong> &nbsp;·&nbsp; e.g. 3.30V/cell ≈ 18% · 4.10V/cell ≈ 91%`;
@@ -624,7 +687,17 @@ function renderDashboard(missions, batteryMap) {
     return vs.length ? parseFloat((vs.reduce((a,v)=>a+v,0)/vs.length).toFixed(2)) : 0;
   });
   renderChart('chartBattUse', 'bar', battIds.map(b=>'#'+b), battUseCounts, '#f59e0b', 'Uses');
-  renderChart('chartBattAvg', 'bar', battIds.map(b=>'#'+b), battAvgV, '#34d399', 'Avg V');
+  window._lastBatteryMap = batteryMap;
+  window._lastMissions = missions;
+  if (charts['chartBattUse']) {
+    charts['chartBattUse'].options.onClick = (evt, elements) => {
+      if (!elements.length) return;
+      const idx = elements[0].index;
+      const battId = battIds[idx];
+      renderBattHistory(battId);
+    };
+    charts['chartBattUse'].update();
+  }
 
   document.getElementById('battTable').innerHTML = battIds.map(b => {
     const bd = batteryMap[b];
@@ -660,7 +733,7 @@ function renderDashboard(missions, batteryMap) {
     const [am,ad,ay]=a.date.split('/').map(Number), [bm,bd,by]=b.date.split('/').map(Number);
     const da = new Date(ay,am-1,ad), db = new Date(by,bm-1,bd);
     if (da - db !== 0) return db - da; // newest date first
-    return (b.armTime||'00:00').localeCompare(a.armTime||'00:00'); // newest time first
+    return armMins(b.armTime) - armMins(a.armTime); // newest time first
   });
   const tbody = document.getElementById('missionTable');
   let dayIndex = -1, lastDate = null;
@@ -964,6 +1037,34 @@ function renderLineChart(id, labels, data) {
     }
   });
 }
+
+function renderBattHistory(battId) {
+  const bm = (window._lastBatteryMap || {})[battId];
+  const missions = window._lastMissions || [];
+  const panel = document.getElementById('batt-history-panel');
+  const titleEl = document.getElementById('batt-history-title');
+  if (titleEl) titleEl.textContent = '#' + battId;
+  if (!bm) { panel.innerHTML = '<div class="bh-empty">No data for battery #' + battId + '</div>'; return; }
+  const flights = missions.filter(m => m.batt === battId)
+    .sort((a, b) => {
+      const [am,ad,ay]=a.date.split('/').map(Number),[bm2,bd2,by2]=b.date.split('/').map(Number);
+      const da = new Date(ay,am-1,ad), db2 = new Date(by2,bm2-1,bd2);
+      if (da - db2 !== 0) return db2 - da;
+      return (b.armTime||'00:00').localeCompare(a.armTime||'00:00');
+    });
+  if (!flights.length) { panel.innerHTML = '<div class="bh-empty">No flights for #' + battId + '</div>'; return; }
+  const rows = flights.map((m, i) => {
+    const durStr = m.duration !== null ? m.duration + 'm' : '—';
+    const vStr = m.landingV && m.landingV > 6 ? m.landingV.toFixed(2) + 'V' : '—';
+    return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span><span class="bh-date">' + m.date + '</span><span class="bh-dur">' + durStr + '</span><span class="bh-aisle">' + m.aisle + '</span><span class="bh-v">' + vStr + '</span></div>';
+  }).join('');
+  panel.innerHTML = '<div class="bh-title">Battery #' + battId + ' — ' + flights.length + ' flights</div>' + rows;
+}
+
+function onSiteChange() {
+  // Placeholder for future multi-site support
+}
+
 
 const FALLBACK_CSV = `Timestamp,ชื่อผู้ทำ Checklist,ตัวเลือก Checklist,จบภารกิจหรือไม่?,เหตุผลที่ภารกิจ บินไม่จบ (ข้ามข้อนี้ถ้าบินจบปกติ),Arming Time,Disarm Time,Battery Name,Battery Landing Stat,Drone Name,ชื่อผู้ถือ RC,Battery Name,Aisle Checking [ทำการแจ้งพนักงานผู้รับผิดชอบพื้นที่แล้ว],Aisle Checking [ทำการคล้องโซ่ และวางกรวยป้องกันพื้นที่แล้ว],"Aisle Checking [พื้นที่ Aisle ที่พื้น พร้อมสำหรับบิน (พาเลต, รถคอมคาร์ท, อื่นๆ)]","Aisle Checking [พื้นที่ Aisle บนชั้น พร้อมสำหรับบิน (ฟิล์มไม่บดบัง, Tag ไม่ชำรุด)]",Remote Controler (RC) [คันโยก [RC] ทั้งหมด อยู่ในตำแหน่งพร้อมสำหรับเปิด],Remote Controler (RC) [เปิด [RC] และไม่ขึ้น 'Warning' ใดๆ],Remote Controler (RC) [แบตเตอร์รี่ [RC] ไม่ต่ำกว่า 4.8v],Ground Checking 1 [เช็คการตอบสนองของ [กล้อง] ซ้าย และ ขวา],Ground Checking 1 [Restart VSN],Ground Checking 1 [ความจำ [Disk] ไม่เกิน 70%],LogID : ,Ground Checking 2 [ระดับแบตเตอรี่ของโดรนต้องมากกว่า [ 24 V. ]],Ground Checking 2 [Internet: ไม่เกิน [ -70 dBm ] ],Ground Checking 2 [เช็คอุณหภูมิ ต้องไม่มากกว่า 70°C],Ground Checking 2 [Ground Check Status แสดงผล มากกว่า 80% (สีเขียว)],Ground Checking 2 [อัพโหลด [ Map-Marker ] ให้ตรงกับซอยภารกิจ],External Mission,In-Plant Mission,ตรวจสอบอีกครั้งว่า RC พร้อมใช้งาน,ประจุของแบตเตอร์รี่ขณะนี้
 2/13/2026 13:41:37,คุณอัง DHL,2. Checklist Take-off Mission,,,,,,,Photon 400,คุณอัง DHL,72,Checked,Checked,Checked,Checked,Checked,Checked,Checked,,,Checked (ปกติ),17,Checked (ปกติ),Checked (ปกติ),,,Checked (ปกติ),N06,,ใช่,4.16,Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),Checked (ปกติ),,,,,,,,,,,,,
