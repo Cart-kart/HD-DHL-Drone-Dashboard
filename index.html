@@ -169,6 +169,8 @@
             <th>Total Used V</th>
             <th>Last Used</th>
             <th>Avg Take-off V</th>
+            <th>Total Flight Time</th>
+            <th>Avg / Flight</th>
           </tr>
         </thead>
         <tbody id="battTable"></tbody>
@@ -419,13 +421,14 @@ function processData(rows) {
     if (batt) {
       const [bm,bd,by] = date.split('/').map(Number);
       const dateMs = new Date(by,bm-1,bd).getTime();
-      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], takeoffVoltages: [], lastUsed: date, lastMs: dateMs };
+      if (!batteryMap[batt]) batteryMap[batt] = { uses: 0, landingVoltages: [], drains: [], takeoffVoltages: [], durations: [], lastUsed: date, lastMs: dateMs };
       const b = batteryMap[batt];
       b.uses++;
       if (landingV && landingV > 6) b.landingVoltages.push(landingV);
       if (charge && landingV && landingV > 6) b.drains.push(charge - landingV);
       if (charge) b.takeoffVoltages.push(charge);
       if (dateMs >= b.lastMs) { b.lastUsed = date; b.lastMs = dateMs; }
+      if (duration !== null) b.durations.push(duration);
     }
 
     missions.push({
@@ -630,6 +633,8 @@ function renderDashboard(missions, batteryMap) {
       <td>${totalUsed !== '—' ? totalUsed+'V' : '—'}</td>
       <td>${bd.lastUsed}</td>
       <td>${takeoffV}</td>
+      <td>${bd.durations.length ? '<strong style="color:#60a5fa">' + bd.durations.reduce((a,v)=>a+v,0) + ' min</strong> <span style="color:#475569;font-size:0.8em">(' + bd.durations.length + ' flights)</span>' : '—'}</td>
+      <td>${bd.durations.length ? Math.round(bd.durations.reduce((a,v)=>a+v,0)/bd.durations.length) + ' min' : '—'}</td>
     </tr>`;
   }).join('');
 
