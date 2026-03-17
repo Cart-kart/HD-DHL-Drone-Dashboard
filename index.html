@@ -166,10 +166,9 @@
             <th>Avg %</th>
             <th>Min Landing</th>
             <th>Min %</th>
-            <th>Total Used V</th>
+            <th>Total battery used time</th>
             <th>Last Used</th>
             <th>Avg Take-off V</th>
-            <th>Total Flight Time</th>
             <th>Avg / Flight</th>
           </tr>
         </thead>
@@ -630,10 +629,9 @@ function renderDashboard(missions, batteryMap) {
       <td>${avgPct !== null ? `<span style="color:${pctColor(avgPct)}">${avgPct}%</span>` : '—'}</td>
       <td>${minV !== '—' ? `${minV}V <span style="color:#64748b;font-size:0.85em">(${minCell}V/cell)</span>` : '—'}</td>
       <td>${minPct !== null ? `<span style="color:${pctColor(minPct)}">${minPct}%</span>` : '—'}</td>
-      <td>${totalUsed !== '—' ? totalUsed+'V' : '—'}</td>
+      <td>${bd.durations.length ? '<strong style="color:#60a5fa">' + bd.durations.reduce((a,v)=>a+v,0) + ' min</strong> <span style="color:#475569;font-size:0.8em">(' + bd.durations.length + ' flights)</span>' : '—'}</td>
       <td>${bd.lastUsed}</td>
       <td>${takeoffV}</td>
-      <td>${bd.durations.length ? '<strong style="color:#60a5fa">' + bd.durations.reduce((a,v)=>a+v,0) + ' min</strong> <span style="color:#475569;font-size:0.8em">(' + bd.durations.length + ' flights)</span>' : '—'}</td>
       <td>${bd.durations.length ? Math.round(bd.durations.reduce((a,v)=>a+v,0)/bd.durations.length) + ' min' : '—'}</td>
     </tr>`;
   }).join('');
