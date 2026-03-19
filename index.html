@@ -469,6 +469,7 @@ function processData(rows) {
 
   // Build type 3 lookup keyed by date_batt — store with parsed arm time for matching
   const type3map = {};
+  const type3DateMap = {}; // fallback: keyed by date only (for operator battery-ID typos)
   const type3 = data.filter(r => r[C.type] && r[C.type].includes('3.'));
   type3.forEach(r => {
     const date = r[C.timestamp].split(' ')[0];
@@ -477,7 +478,10 @@ function processData(rows) {
     if (!type3map[key]) type3map[key] = [];
     // store arm minutes so we can match by time proximity instead of FIFO
     const t3ArmMin = parseMissionTime(r[C.armTime]);
-    type3map[key].push({ row: r, armMin: t3ArmMin !== null ? t3ArmMin : -1, used: false });
+    const entry = { row: r, armMin: t3ArmMin !== null ? t3ArmMin : -1, used: false };
+    type3map[key].push(entry);
+    if (!type3DateMap[date]) type3DateMap[date] = [];
+    type3DateMap[date].push(entry);
   });
 
   // Use type 2 (takeoff) as base — every takeoff = one mission row
@@ -503,14 +507,17 @@ function processData(rows) {
       if (diff < bestDiff) { bestDiff = diff; best = c; }
     });
     if (best) best.used = true;
-    const t3 = best ? best.row : null;
-    // DEBUG — remove after investigation
+    let t3 = best ? best.row : null;
+    // Fallback: battery ID typo by operator — search all unused type3 on same date by closest arm time
     if (!t3) {
-      const allCandidates = type3map[key] || [];
-      console.warn('[UNMATCHED]', date, batt, 'tsMin='+tsMin,
-        'candidates:', allCandidates.map(c => ({armMin:c.armMin, used:c.used, completed:c.row[C.completed]})));
-      // also dump raw column values to check battery ID alignment
-      console.warn('[TYPE2 RAW]', 'col7='+r[7], 'col11='+r[11], 'col29='+r[29]);
+      const dateCandidates = type3DateMap[date] || [];
+      let fbBest = null, fbBestDiff = Infinity;
+      dateCandidates.forEach(c => {
+        if (c.used) return;
+        const diff = (c.armMin >= 0 && tsMin >= 0) ? Math.abs(c.armMin - tsMin) : 9999;
+        if (diff < fbBestDiff) { fbBestDiff = diff; fbBest = c; }
+      });
+      if (fbBest && fbBestDiff <= 30) { fbBest.used = true; t3 = fbBest.row; }
     }
 
     const estimatedArm = tsToTime(ts);
