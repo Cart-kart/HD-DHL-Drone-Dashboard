@@ -177,7 +177,12 @@
   <div class="aisle-overview-grid">
     <div class="table-card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <h3 style="margin:0">All Aisles Overview</h3>
+        <h3 style="margin:0">Aisles Overview</h3>
+        <select id="aisle-year" onchange="onAisleYearChange(this.value)" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:0.72rem;cursor:pointer;">
+          <option value="total">Total</option>
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+        </select>
         <button id="aisle-sort-btn" onclick="toggleAisleSort()" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:3px 10px;font-size:0.72rem;cursor:pointer;">↑ Least first</button>
         <span style="font-size:0.67rem;color:#475569;font-style:italic">&#9654; Click an aisle to see history</span>
       </div>
@@ -752,10 +757,14 @@ function renderDashboard(missions, batteryMap) {
   </tr>`;
   }).join('');
 
-  // All Aisles Overview — store globally then render
+  // Store all site missions for year filter, then render aisle overview
+  window._allSiteMissions = [...STATIC_MISSIONS_2025, ...(window._liveMissions || missions)];
   window._lastAisleMap = aisleMap;
   window._lastAisleLastFlight = aisleLastFlight;
-  renderAisleOverview(window._aisleSortDir || 'asc');
+  // Re-apply year filter if one is selected
+  const yrSel = (document.getElementById('aisle-year') || {}).value || 'total';
+  if (yrSel !== 'total') onAisleYearChange(yrSel);
+  else renderAisleOverview(window._aisleSortDir || 'asc');
 
   // Battery remark
   document.getElementById('battRemark').innerHTML =
@@ -1137,6 +1146,27 @@ function renderLineChart(id, labels, data) {
       }
     }
   });
+}
+
+function onAisleYearChange(year) {
+  const all = window._allSiteMissions || [];
+  let filtered;
+  if (year === '2025') filtered = all.filter(m => m.date && m.date.endsWith('2025'));
+  else if (year === '2026') filtered = all.filter(m => m.date && m.date.endsWith('2026'));
+  else filtered = all;
+  // Rebuild aisle maps from filtered missions
+  const am = {}, alf = {};
+  filtered.forEach(m => {
+    if (!m.aisle || m.aisle === '—') return;
+    am[m.aisle] = (am[m.aisle] || 0) + 1;
+    const [mn,d,y] = m.date.split('/').map(Number);
+    const ms = new Date(y,mn-1,d).getTime();
+    if (!alf[m.aisle] || ms > alf[m.aisle].ms)
+      alf[m.aisle] = { ms, date: m.date, time: m.armTime };
+  });
+  window._lastAisleMap = am;
+  window._lastAisleLastFlight = alf;
+  renderAisleOverview(window._aisleSortDir || 'asc');
 }
 
 function toggleAisleSort() {
