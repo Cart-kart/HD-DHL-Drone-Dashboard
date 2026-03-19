@@ -545,6 +545,7 @@ function processData(rows) {
 
     const estimatedArm = tsToTime(ts);
     const landingV = t3 ? normTotal(parseFloat(t3[C.battLanding] || '') || null) : null;
+    if (t3 && date === '3/19/2026' && ts.includes('9:24')) console.log('[DEBUG 9:24] t3[8]=', JSON.stringify(t3[C.battLanding]), 'landingV=', landingV, 'ts=', ts);
     const resolvedArm = t3 ? (t3[C.armTime] || estimatedArm) : estimatedArm;
     const duration = t3 ? missionDuration(resolvedArm, t3[C.disarmTime]) : null;
     const completed = t3 ? (t3[C.completed] || '') : '';
