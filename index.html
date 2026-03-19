@@ -472,7 +472,7 @@ function processData(rows) {
   const type3 = data.filter(r => r[C.type] && r[C.type].includes('3.'));
   type3.forEach(r => {
     const date = r[C.timestamp].split(' ')[0];
-    const battId = (r[C.battName] || '').replace(/\s.*/, '').trim(); // strip notes like "No.78"
+    const battId = remapBatt((r[C.battName] || '').replace(/\s.*/, '').trim(), date); // strip notes like "No.78"
     const key = date + '_' + battId;
     // keep last entry per key (multiple disarms same batt same day)
     if (!type3map[key]) type3map[key] = [];
