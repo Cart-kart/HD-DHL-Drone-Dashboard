@@ -671,7 +671,12 @@ function renderDashboard(missions, batteryMap) {
     const s = [...merged].sort((x, y) => x - y);
     _aisleMedian[a] = s[Math.floor(s.length / 2)];
   });
+  // Global fallback: 2025 median duration — used when aisle has no data at all
+  const _globalDurs = STATIC_MISSIONS_FILTERED.map(m => m.duration).filter(v => v !== null && v !== undefined);
+  const _globalSorted = [..._globalDurs].sort((a, b) => a - b);
+  const _globalFallback = _globalSorted.length ? _globalSorted[Math.floor(_globalSorted.length / 2)] : null;
   window._aisleMedian = _aisleMedian; // expose for renderTodayPanel
+  window._globalFallback = _globalFallback;
   // Total flight time: actual duration or aisle median estimate for no-disarm rows
   const totalFlightMins = missions.reduce((sum, m) => {
     if (m.duration !== null) return sum + m.duration;
@@ -900,7 +905,9 @@ function renderDashboard(missions, batteryMap) {
     const color = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
     const flying = isFlying(m);
     // Use per-aisle median for estimates (falls back to null if no data)
-    const aisleMed = _aisleMedian[m.aisle] ? Math.round(_aisleMedian[m.aisle]) : null;
+    const _aisleHasData = !!_aisleMedian[m.aisle];
+    const aisleMed = _aisleHasData ? Math.round(_aisleMedian[m.aisle]) : (_globalFallback ? Math.round(_globalFallback) : null);
+    const estTip = _aisleHasData ? 'Estimated from aisle avg' : 'Estimated from 2025 global avg (no aisle data)';
     // Estimate landing time for no-disarm rows using aisle median
     const estDisarm = (() => {
       if (m.hasResult || flying || !aisleMed || !m.armTime || m.armTime === '—') return null;
@@ -921,8 +928,8 @@ function renderDashboard(missions, batteryMap) {
       } else {
         statusCell = `<span class="badge assumed" title="No disarm record — assumed complete">Done*</span>`;
         noteCell = `<span style="color:#475569;font-size:0.7rem;font-style:italic">no disarm record</span>`;
-        disarmCell = estDisarm ? `<span style="color:#64748b" title="Estimated from aisle avg">~${estDisarm}<span style="font-size:0.65rem;color:#475569"> est.</span></span>` : '—';
-        durCell = aisleMed ? `<span style="color:#64748b" title="Estimated from aisle avg">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>` : '—';
+        disarmCell = estDisarm ? `<span style="color:#64748b" title="${estTip}">~${estDisarm}<span style="font-size:0.65rem;color:#475569"> est.</span></span>` : '—';
+        durCell = aisleMed ? `<span style="color:#64748b" title="${estTip}">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>` : '—';
       }
     } else {
       statusCell = `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
@@ -1021,7 +1028,9 @@ function renderFlightsPanel(dateStr) {
     const rowBg = flying ? '#0d2218' : (m.hasResult && !ok) ? '#2d0a0a' : isNight ? '#0d0a1e' : assumedDone ? '#111a11' : '#0d1f1a';
     const rowBorder = isNight ? 'border-left:3px solid #7c3aed;' : '';
     const shiftIcon = isNight ? '🌙 ' : '☀️ ';
-    const aisleMed = (() => { const v = (window._aisleMedian || {})[m.aisle]; return v ? Math.round(v) : null; })();
+    const _todayAisleHasData = !!(window._aisleMedian || {})[m.aisle];
+    const aisleMed = (() => { const v = (window._aisleMedian || {})[m.aisle]; return v ? Math.round(v) : (window._globalFallback ? Math.round(window._globalFallback) : null); })();
+    const estTip = _todayAisleHasData ? 'Estimated from aisle avg' : 'Estimated from 2025 global avg (no aisle data)';
     const estDisarm = (() => {
       if (m.hasResult || flying || !aisleMed || !m.armTime || m.armTime === '—') return null;
       const base = parseMissionTime(m.armTime) || armMins(m.armTime);
@@ -1036,12 +1045,12 @@ function renderFlightsPanel(dateStr) {
       : (m.disarmTime && m.disarmTime !== '—')
         ? fmtTime(m.disarmTime)
         : estDisarm
-          ? `<span style="color:#64748b" title="Estimated from aisle avg">~${estDisarm}<span style="font-size:0.65rem;color:#475569"> est.</span></span>`
+          ? `<span style="color:#64748b" title="${estTip}">~${estDisarm}<span style="font-size:0.65rem;color:#475569"> est.</span></span>`
           : '—';
     const durCell = m.duration !== null
       ? formatDuration(m.duration)
       : (assumedDone && aisleMed)
-        ? `<span style="color:#64748b" title="Estimated from aisle avg">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>`
+        ? `<span style="color:#64748b" title="${estTip}">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>`
         : '—';
     return `<tr style="background:${rowBg};${rowBorder}"><td>${shiftIcon}${fmtTime(m.armTime)}</td><td>${m.rcOp.replace(' DHL','')}</td><td>${m.drone}</td><td>${m.aisle}</td><td>#${m.batt}</td><td>${landingTimeCell}</td><td>${durCell}</td><td>${m.logId || '—'}</td><td>${badge}</td></tr>`;
   }).join('');
