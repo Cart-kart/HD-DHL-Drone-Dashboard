@@ -665,30 +665,23 @@ function renderDashboard(missions, batteryMap) {
   }); // end missionsSorted
   const aisleDurRanked = Object.entries(aisleDurMap)
     .map(([aisle, { all: durs, success: successDurs, recent }]) => {
-      // Gap-based outlier filter: sort ascending, find gaps > 5 min
-      // Everything below a gap > 5 is treated as a failed/outlier mission
       const sorted = [...durs].sort((a, b) => a - b);
-      let cutIdx = 0;
-      for (let i = 1; i < sorted.length; i++) {
-        if (sorted[i] - sorted[i - 1] > 5) cutIdx = i;
-      }
-      const validDurs = sorted.slice(cutIdx);
-      // Same gap filter applied to success-only for min
-      const sortedSuccess = [...(successDurs.length ? successDurs : durs)].sort((a, b) => a - b);
-      let cutIdxS = 0;
-      for (let i = 1; i < sortedSuccess.length; i++) {
-        if (sortedSuccess[i] - sortedSuccess[i - 1] > 5) cutIdxS = i;
-      }
-      const validMin = sortedSuccess.slice(cutIdxS);
-      const avg = validDurs.reduce((a,v) => a+v, 0) / validDurs.length;
+      // Median = typical flight time for this aisle
+      const median = sorted[Math.floor(sorted.length / 2)];
+      // IQR-based filter: keep only values within [median*0.5, median*1.8]
+      // Catches both short failsafes and long bad-pairings
+      const validDurs = sorted.filter(v => v >= median * 0.5 && v <= median * 1.8);
+      const useDurs = validDurs.length >= 1 ? validDurs : sorted;
+      const avg = useDurs.reduce((a,v) => a+v, 0) / useDurs.length;
       const last5 = recent.slice(-5).reverse();
       return {
         aisle,
         count: durs.length,
         avg,
-        min: Math.min(...validMin),
-        max: Math.max(...validDurs),
-        total: validDurs.reduce((a,v) => a+v, 0),
+        median,
+        min: Math.min(...sorted),
+        max: Math.max(...sorted),
+        total: useDurs.reduce((a,v) => a+v, 0),
         last5
       };
     })
@@ -707,10 +700,17 @@ function renderDashboard(missions, batteryMap) {
   document.getElementById('aisleDurTable').innerHTML = aisleDurRanked.map((a, i) => {
     const last5Badges = a.last5.map(item => {
       const v = item.dur;
-      const isOutlier = a.avg - v > 5;
-      const color = isOutlier ? '#f87171' : '#4ade80';
       const tip = (item.date && item.time && item.time !== '—') ? `${item.date} ${item.time}` : item.date || '';
-      return `<span class="tip" data-tip="${tip}" tabindex="0" style="display:inline-block;background:#1e293b;border:1px solid ${color};color:${color};border-radius:4px;padding:1px 6px;font-size:0.72rem;margin:1px">${v}m</span>`;
+      // Color based on deviation from median (typical flight time)
+      let color, label = v + 'm';
+      if (v < a.median * 0.6) {
+        color = '#f87171'; label = v + 'm ⚡'; // too short — possible failsafe
+      } else if (v > a.median * 1.6) {
+        color = '#f59e0b'; label = v + 'm ?'; // too long — suspicious pairing
+      } else {
+        color = '#4ade80'; // normal
+      }
+      return `<span class="tip" data-tip="${tip}" tabindex="0" style="display:inline-block;background:#1e293b;border:1px solid ${color};color:${color};border-radius:4px;padding:1px 6px;font-size:0.72rem;margin:1px">${label}</span>`;
     }).join('');
     const extraFlights = a.count - 5;
     const extraBadge = extraFlights > 0
