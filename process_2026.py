@@ -11,7 +11,7 @@ from datetime import datetime, date
 from pathlib import Path
 from urllib.request import urlopen, Request
 
-GAS_URL = 'https://script.google.com/macros/s/AKfycbxUNphRaA_UtuJw-8xu74uEeufQvGDdRAMrsyeNR2kadENwmpH1O85rjiVt-jsRFVBE/exec'
+CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSPOCAMFEhkGWvUwpK1TPf2amqxxL5vN-rgEPjBqpifzZ34CG8kVNNjppMOvhmau5NM4w-BkgDsUTYb/pub?output=csv'
 # Paths relative to this script's location
 _HERE = Path(__file__).parent
 INDEX_HTML = str(_HERE / 'index.html')
@@ -179,19 +179,11 @@ def get_col(row, idx):
 
 
 def fetch_csv():
-    """Fetch CSV from GAS proxy, following redirect."""
-    print(f'Fetching {GAS_URL} ...')
-    req = Request(GAS_URL, headers={'User-Agent': 'Mozilla/5.0'})
+    """Fetch CSV from published Google Sheet URL."""
+    print(f'Fetching {CSV_URL} ...')
+    req = Request(CSV_URL, headers={'User-Agent': 'Mozilla/5.0'})
     resp = urlopen(req, timeout=30)
-    # GAS redirects to googleusercontent.com
-    final_url = resp.url if hasattr(resp, 'url') else resp.geturl()
     content = resp.read()
-    if not content.strip().startswith(b'Timestamp') and not content.strip().startswith(b'"Timestamp'):
-        # May need to follow redirect manually
-        if b'googleusercontent' in content or len(content) < 500:
-            print('Following redirect...')
-            redirect_req = Request(final_url, headers={'User-Agent': 'Mozilla/5.0'})
-            content = urlopen(redirect_req, timeout=30).read()
     text = content.decode('utf-8-sig')
     print(f'Fetched {len(text)} bytes')
     return text
@@ -280,7 +272,7 @@ def process_rows(rows, cutoff_date):
             if c['used']:
                 continue
             diff = abs(c['armMin'] - ts_min) if c['armMin'] >= 0 and ts_min >= 0 else 9999
-            if diff < best_diff:
+            if diff < best_diff and diff <= 90:
                 best_diff = diff
                 best = c
 
@@ -355,8 +347,12 @@ def embed_into_html(missions_json):
 
 
 if __name__ == '__main__':
+    from datetime import timedelta
+    include_today = '--include-today' in sys.argv
     today = date.today()
-    print(f'Baking 2026 missions before {today}')
+    # --include-today: bake everything including today (used by 18:00 daily scheduler)
+    cutoff = today + timedelta(days=1) if include_today else today
+    print(f'Baking 2026 missions before {cutoff} (include_today={include_today})')
 
     try:
         csv_text = fetch_csv()
@@ -374,7 +370,7 @@ if __name__ == '__main__':
     data_rows = all_rows[1:]
     print(f'Total rows (excl header): {len(data_rows)}')
 
-    missions = process_rows(data_rows, today)
+    missions = process_rows(data_rows, cutoff)
     print(f'Processed {len(missions)} missions')
 
     if not missions:
