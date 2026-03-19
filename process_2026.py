@@ -109,6 +109,11 @@ def normalize_aisle(raw):
         return AISLE_MAP_E.get(num, 'E' + str(num).zfill(2))
     m = re.match(r'[Nn][Oo]?\.?\s*0*(\d+)', s)
     if not m:
+        # plain number fallback — treat as N-series
+        m2 = re.match(r'^0*(\d+)$', s)
+        if m2:
+            num = int(m2.group(1))
+            return AISLE_MAP.get(num, 'N' + str(num).zfill(2))
         return s
     num = int(m.group(1))
     return AISLE_MAP.get(num, 'N' + str(num).zfill(2))
@@ -130,7 +135,8 @@ def parse_landing_v(s):
 def norm_total(v):
     if v is None or v <= 1:
         return None
-    return v * 6 if v < 6 else v
+    t = v * 6 if v < 6 else v
+    return None if t > 26 else t
 
 
 def parse_time_mins(t_str):
@@ -234,6 +240,15 @@ def process_rows(rows, cutoff_date):
         entry = {'row': r, 'armMin': arm_min if arm_min >= 0 else -1, 'used': False}
         t3map.setdefault(key, []).append(entry)
         t3datemap.setdefault(date_str, []).append(entry)
+        # Midnight crossover: type3 early morning (< 08:00) with late-night arm time (≥ 20:00)
+        # also index under previous day so it matches night-shift type2 from prior date
+        if ts_dt.hour < 8 and arm_min >= 20 * 60:
+            from datetime import timedelta
+            prev_dt = ts_dt - timedelta(days=1)
+            prev_date = f'{prev_dt.month}/{prev_dt.day}/{prev_dt.year}'
+            prev_key = f'{prev_date}_{batt_id}'
+            t3map.setdefault(prev_key, []).append(entry)
+            t3datemap.setdefault(prev_date, []).append(entry)
 
     missions = []
     for r in type2_rows:
