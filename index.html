@@ -484,7 +484,7 @@ function processData(rows) {
   type2.forEach((r, idx) => {
     const ts = r[C.timestamp];
     const date = ts.split(' ')[0];
-    const batt = remapBatt((r[11] || r[C.battName] || '').trim(), date);
+    const batt = remapBatt((r[11] || r[C.battName] || '').replace(/\s.*/, '').trim(), date);
     const aisle = normalizeAisle((r[C.inPlant] || r[28] || '').trim());
     const rcOp = r[C.rcOp] || '—';
     const drone = (r[C.drone] || '—').trim();
