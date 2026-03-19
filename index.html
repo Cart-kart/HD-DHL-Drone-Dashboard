@@ -589,10 +589,12 @@ function renderDashboard(missions, batteryMap) {
   // Stats
   const total = missions.length;
   const withResult = missions.filter(m => m.hasResult);
-  const completed = missions.filter(m => m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ')).length;
+  const confirmed = missions.filter(m => m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ')).length;
+  const assumed = total - withResult.length; // no disarm row — assumed complete
+  const completed = confirmed + assumed;
   const failed = withResult.filter(m => m.completed.includes('ไม่เสร็จ')).length;
-  const noData = total - withResult.length;
-  const rate = withResult.length ? Math.round(completed / withResult.length * 100) : 0;
+  const noData = 0; // now counted under assumed
+  const rate = total ? Math.round(completed / total * 100) : 0;
   const operators = [...new Set(missions.map(m => m.person))];
   const avgDuration = withResult.filter(m => m.duration).reduce((s, m) => s + m.duration, 0) / (withResult.filter(m => m.duration).length || 1);
   const battVoltages = missions.filter(m => m.landingV && m.landingV > 6);
@@ -604,8 +606,8 @@ function renderDashboard(missions, batteryMap) {
   const totalFlightStr = totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`;
 
   document.getElementById('stats').innerHTML = `
-    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with result · ${noData} no data</div></div>
-    <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of confirmed flights</div></div>
+    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm</div></div>
+    <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span></div></div>
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => o.replace(' DHL','')).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
