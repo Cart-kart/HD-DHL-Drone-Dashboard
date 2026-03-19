@@ -406,6 +406,13 @@ const AISLE_MAP_E = {
   49: 'E49_EAS_P4',
 };
 
+// Battery ID correction: #71 entered in error before 18 Mar 2026 — actual battery was #79
+function remapBatt(rawId, dateStr) {
+  if (rawId !== '71') return rawId;
+  const [m, d, y] = dateStr.split('/').map(Number);
+  return new Date(y, m - 1, d) < new Date(2026, 2, 18) ? '79' : '71';
+}
+
 function normalizeAisle(raw) {
   if (!raw || raw === '—') return '—';
   const s = raw.trim();
@@ -477,7 +484,7 @@ function processData(rows) {
   type2.forEach((r, idx) => {
     const ts = r[C.timestamp];
     const date = ts.split(' ')[0];
-    const batt = (r[11] || r[C.battName] || '').trim();
+    const batt = remapBatt((r[11] || r[C.battName] || '').trim(), date);
     const aisle = normalizeAisle((r[C.inPlant] || r[28] || '').trim());
     const rcOp = r[C.rcOp] || '—';
     const drone = (r[C.drone] || '—').trim();
