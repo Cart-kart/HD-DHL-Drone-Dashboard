@@ -645,14 +645,23 @@ function renderDashboard(missions, batteryMap) {
   const avgBatt = battVoltages.length ? (battVoltages.reduce((s, m) => s + m.landingV, 0) / battVoltages.length).toFixed(2) : '—';
 
   // Build aisle median lookup for estimating no-disarm flight times
+  // 2026 primary; if < 2 confirmed 2026 samples, blend in 2025 historical data
   const _aisleDurs = {};
   missions.forEach(m => {
     if (m.aisle && m.aisle !== '—' && m.duration !== null)
       (_aisleDurs[m.aisle] = _aisleDurs[m.aisle] || []).push(m.duration);
   });
+  const _aisleDurs25 = {};
+  STATIC_MISSIONS_FILTERED.forEach(m => {
+    if (m.aisle && m.aisle !== '—' && m.duration !== null)
+      (_aisleDurs25[m.aisle] = _aisleDurs25[m.aisle] || []).push(m.duration);
+  });
   const _aisleMedian = {};
-  Object.entries(_aisleDurs).forEach(([a, durs]) => {
-    const s = [...durs].sort((x,y) => x-y);
+  new Set([...Object.keys(_aisleDurs), ...Object.keys(_aisleDurs25)]).forEach(a => {
+    const d26 = _aisleDurs[a] || [];
+    const merged = d26.length >= 2 ? d26 : [...d26, ...(_aisleDurs25[a] || [])];
+    if (!merged.length) return;
+    const s = [...merged].sort((x, y) => x - y);
     _aisleMedian[a] = s[Math.floor(s.length / 2)];
   });
   // Total flight time: actual duration or aisle median estimate for no-disarm rows
@@ -672,7 +681,7 @@ function renderDashboard(missions, batteryMap) {
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
-    <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} confirmed · ${missions.filter(m => m.duration === null && _aisleMedian[m.aisle]).length} est. from aisle avg</div></div>
+    <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} confirmed · ${missions.filter(m => m.duration === null && _aisleMedian[m.aisle]).length} est. from aisle avg (2025+2026)</div></div>
   `;
 
   // Chart: Missions per day
