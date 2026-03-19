@@ -467,16 +467,17 @@ function processData(rows) {
   const batteryMap = {};
   const missions = [];
 
-  // Build type 3 lookup keyed by date_batt (after-disarm records)
+  // Build type 3 lookup keyed by date_batt — store with parsed arm time for matching
   const type3map = {};
   const type3 = data.filter(r => r[C.type] && r[C.type].includes('3.'));
   type3.forEach(r => {
     const date = r[C.timestamp].split(' ')[0];
-    const battId = remapBatt((r[C.battName] || '').replace(/\s.*/, '').trim(), date); // strip notes like "No.78"
+    const battId = remapBatt((r[C.battName] || '').replace(/\s.*/, '').trim(), date);
     const key = date + '_' + battId;
-    // keep last entry per key (multiple disarms same batt same day)
     if (!type3map[key]) type3map[key] = [];
-    type3map[key].push(r);
+    // store arm minutes so we can match by time proximity instead of FIFO
+    const t3ArmMin = parseMissionTime(r[C.armTime]);
+    type3map[key].push({ row: r, armMin: t3ArmMin !== null ? t3ArmMin : -1, used: false });
   });
 
   // Use type 2 (takeoff) as base — every takeoff = one mission row
@@ -491,12 +492,18 @@ function processData(rows) {
     const logId = r[C.logId] || '—';
     const charge = normTotal(parseFloat(r[C.battCharge]) || null);
 
-    // Find matching type 3 record
+    // Match type3 by closest arm time (not FIFO) — fixes multiple same-battery flights per day
     const key = date + '_' + batt;
-    const t3list = type3map[key];
-    // pick the t3 entry not yet consumed (FIFO)
-    if (!type3map[key + '_used']) type3map[key + '_used'] = 0;
-    const t3 = t3list ? t3list[type3map[key + '_used']++] : null;
+    const candidates = type3map[key] || [];
+    const tsMin = (() => { const hm = (tsToTime(ts)||'').split(':'); return hm.length===2 ? +hm[0]*60 + +hm[1] : -1; })();
+    let best = null, bestDiff = Infinity;
+    candidates.forEach(c => {
+      if (c.used) return;
+      const diff = (c.armMin >= 0 && tsMin >= 0) ? Math.abs(c.armMin - tsMin) : 9999;
+      if (diff < bestDiff) { bestDiff = diff; best = c; }
+    });
+    if (best) best.used = true;
+    const t3 = best ? best.row : null;
 
     const estimatedArm = tsToTime(ts);
     const landingV = t3 ? normTotal(parseFloat((t3[C.battLanding] || '').replace(/\s.*/, '')) || null) : null;
