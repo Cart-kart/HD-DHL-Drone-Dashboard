@@ -573,6 +573,7 @@ function processData(rows) {
       armTime: resolvedArm || '—',
       disarmTime: t3 ? (t3[C.disarmTime] || '—') : '—',
       duration, landingV: landingV,
+      rawLandingV: t3 ? t3[C.battLanding] : undefined,
       completed, reason, hasResult
     });
   });
@@ -925,7 +926,7 @@ function renderDashboard(missions, batteryMap) {
       <td>${fmtTime(m.armTime)}</td>
       <td>${disarmCell}</td>
       <td>${durCell}</td>
-      <td>${bv ? `<span class="battery-bar"><span class="battery-fill" style="width:${pct}%;background:${color}"></span></span>${fmtV(m.landingV)}` : '—'}</td>
+      <td>${bv ? `<span class="battery-bar"><span class="battery-fill" style="width:${pct}%;background:${color}"></span></span>${fmtV(m.landingV)}` : (m.rawLandingV !== undefined && String(m.rawLandingV).trim() !== '') ? `<span style="color:#f97316;font-size:0.7rem" title="raw CSV — could not parse as voltage">raw:${JSON.stringify(m.rawLandingV)}</span>` : '—'}</td>
       <td>${statusCell}</td>
       <td>${noteCell}</td>
     </tr>`;
