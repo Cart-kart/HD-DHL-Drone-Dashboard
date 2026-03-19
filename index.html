@@ -178,10 +178,7 @@
     <div class="table-card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
         <h3 style="margin:0">All Aisles Overview</h3>
-        <select id="aisle-sort" onchange="renderAisleOverview(this.value)" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:0.72rem;cursor:pointer;">
-          <option value="asc">Least first</option>
-          <option value="desc">Top first</option>
-        </select>
+        <button id="aisle-sort-btn" onclick="toggleAisleSort()" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:3px 10px;font-size:0.72rem;cursor:pointer;">↑ Least first</button>
         <span style="font-size:0.67rem;color:#475569;font-style:italic">&#9654; Click an aisle to see history</span>
       </div>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;font-size:0.68rem;color:#64748b;">
@@ -758,7 +755,7 @@ function renderDashboard(missions, batteryMap) {
   // All Aisles Overview — store globally then render
   window._lastAisleMap = aisleMap;
   window._lastAisleLastFlight = aisleLastFlight;
-  renderAisleOverview((document.getElementById('aisle-sort') || {}).value || 'asc');
+  renderAisleOverview(window._aisleSortDir || 'asc');
 
   // Battery remark
   document.getElementById('battRemark').innerHTML =
@@ -1140,6 +1137,13 @@ function renderLineChart(id, labels, data) {
       }
     }
   });
+}
+
+function toggleAisleSort() {
+  window._aisleSortDir = (window._aisleSortDir || 'asc') === 'asc' ? 'desc' : 'asc';
+  const btn = document.getElementById('aisle-sort-btn');
+  if (btn) btn.textContent = window._aisleSortDir === 'asc' ? '↑ Least first' : '↓ Top first';
+  renderAisleOverview(window._aisleSortDir);
 }
 
 function renderAisleOverview(dir) {
