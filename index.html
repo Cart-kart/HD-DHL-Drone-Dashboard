@@ -447,6 +447,14 @@ const PACK_FULL  = CELL_FULL  * CELLS;       // 25.2V
 const PACK_EMPTY = CELL_EMPTY * CELLS;       // 18.6V
 
 // Normalize to total pack voltage — some operators log per-cell (~3.x), others log total (~22.x)
+function parseLandingV(s) {
+  if (!s) return null;
+  const v = parseFloat(s);
+  if (!isNaN(v)) return v;
+  // operator may annotate battery ID before voltage e.g. "(03)22.4"
+  const m = s.match(/(\d+\.?\d*)$/);
+  return m ? parseFloat(m[1]) : null;
+}
 function normTotal(v) {
   if (!v || v <= 1) return null;
   return v < 6 ? v * CELLS : v;
@@ -544,8 +552,7 @@ function processData(rows) {
     }
 
     const estimatedArm = tsToTime(ts);
-    const landingV = t3 ? normTotal(parseFloat(t3[C.battLanding] || '') || null) : null;
-    if (t3 && date === '3/19/2026' && ts.includes('9:24')) console.log('[DEBUG 9:24] t3[8]=', JSON.stringify(t3[C.battLanding]), 'landingV=', landingV, 'ts=', ts);
+    const landingV = t3 ? normTotal(parseLandingV(t3[C.battLanding] || '')) : null;
     const resolvedArm = t3 ? (t3[C.armTime] || estimatedArm) : estimatedArm;
     const duration = t3 ? missionDuration(resolvedArm, t3[C.disarmTime]) : null;
     const completed = t3 ? (t3[C.completed] || '') : '';
