@@ -1010,9 +1010,11 @@ function renderMissionPage(page) {
         ? `<span style="color:#60a5fa;font-weight:600">${tT.toFixed(2)}V</span> <span style="color:#64748b;font-size:0.7rem">${cellV(tT)}V/cell</span> <span style="color:${tCol};font-size:0.7rem">${tP}%</span>`
         : nd;
       // landing row
-      const landingRow = bv
-        ? `<span class="battery-bar" style="display:inline-block;vertical-align:middle;width:34px;height:5px;background:#1e293b;border-radius:3px;margin-right:4px"><span class="battery-fill" style="display:block;height:100%;width:${pct}%;background:${color};border-radius:3px"></span></span><span style="color:${color};font-weight:600">${m.landingV.toFixed(2)}V</span> <span style="color:#64748b;font-size:0.7rem">${cellV(m.landingV)}V/cell</span> <span style="color:${color};font-size:0.7rem">${pct}%</span>`
-        : nd;
+      const landingRow = flying
+        ? `<span style="color:#f59e0b;font-style:italic">Pending</span>`
+        : bv
+          ? `<span class="battery-bar" style="display:inline-block;vertical-align:middle;width:34px;height:5px;background:#1e293b;border-radius:3px;margin-right:4px"><span class="battery-fill" style="display:block;height:100%;width:${pct}%;background:${color};border-radius:3px"></span></span><span style="color:${color};font-weight:600">${m.landingV.toFixed(2)}V</span> <span style="color:#64748b;font-size:0.7rem">${cellV(m.landingV)}V/cell</span> <span style="color:${color};font-size:0.7rem">${pct}%</span>`
+          : nd;
       return `<div style="font-size:0.78rem;line-height:1.8;min-width:160px">
         <div>${battLabel}</div>
         <div><span style="color:#475569;font-size:0.68rem;width:14px;display:inline-block">↑</span>${takeoffRow}</div>
