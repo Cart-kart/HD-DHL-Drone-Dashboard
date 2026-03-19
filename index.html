@@ -475,7 +475,9 @@ function fmtV(raw) {
 
 function processData(rows) {
   const header = rows[0];
-  const data = rows.slice(1);
+  // Skip dates already baked into STATIC_MISSIONS_2026 to avoid double-processing
+  const _bakedDates = new Set(STATIC_MISSIONS_2026.map(m => m.date));
+  const data = rows.slice(1).filter(r => r[0] && !_bakedDates.has(r[0].split(' ')[0]));
 
   // Column indices
   const C = {
@@ -585,15 +587,20 @@ function processData(rows) {
     });
   });
 
-  window._liveMissions = missions;
-  window._liveBatteryMap = batteryMap;
+  // Merge pre-baked previous days with today's live missions
+  const allLiveMissions = [...STATIC_MISSIONS_2026, ...missions];
+  const allLiveBattMap = STATIC_MISSIONS_2026.length
+    ? buildBatteryMapFromMissions(allLiveMissions)
+    : batteryMap;
+  window._liveMissions = allLiveMissions;
+  window._liveBatteryMap = allLiveBattMap;
   if (_historicalMode) {
     // stay in merged view — re-merge with updated live data
-    const merged = [...STATIC_MISSIONS_FILTERED, ...missions];
+    const merged = [...STATIC_MISSIONS_FILTERED, ...allLiveMissions];
     const mergedBM = buildBatteryMapFromMissions(merged);
     renderDashboard(merged, mergedBM);
   } else {
-    renderDashboard(missions, batteryMap);
+    renderDashboard(allLiveMissions, allLiveBattMap);
   }
 }
 
@@ -1461,6 +1468,9 @@ const STATIC_MISSIONS_2025 = [{"date":"8/27/2025","ts":"8/27/2025 10:37:19","ais
 
 // Test flights excluded from all dashboard views
 const EXCLUDED_AISLES = ['BM LV2 3'];
+// Pre-baked 2026 missions (previous days). Updated by process_2026.py — do not edit manually.
+const STATIC_MISSIONS_2026 = [];
+
 const STATIC_MISSIONS_FILTERED = STATIC_MISSIONS_2025
   .filter(m => !EXCLUDED_AISLES.includes(m.aisle))
   .map(m => {
