@@ -504,6 +504,14 @@ function processData(rows) {
     });
     if (best) best.used = true;
     const t3 = best ? best.row : null;
+    // DEBUG — remove after investigation
+    if (!t3) {
+      const allCandidates = type3map[key] || [];
+      console.warn('[UNMATCHED]', date, batt, 'tsMin='+tsMin,
+        'candidates:', allCandidates.map(c => ({armMin:c.armMin, used:c.used, completed:c.row[C.completed]})));
+      // also dump raw column values to check battery ID alignment
+      console.warn('[TYPE2 RAW]', 'col7='+r[7], 'col11='+r[11], 'col29='+r[29]);
+    }
 
     const estimatedArm = tsToTime(ts);
     const landingV = t3 ? normTotal(parseFloat((t3[C.battLanding] || '').replace(/\s.*/, '')) || null) : null;
