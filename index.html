@@ -671,6 +671,7 @@ function renderDashboard(missions, batteryMap) {
     const s = [...merged].sort((x, y) => x - y);
     _aisleMedian[a] = s[Math.floor(s.length / 2)];
   });
+  window._aisleMedian = _aisleMedian; // expose for renderTodayPanel
   // Total flight time: actual duration or aisle median estimate for no-disarm rows
   const totalFlightMins = missions.reduce((sum, m) => {
     if (m.duration !== null) return sum + m.duration;
@@ -1020,8 +1021,29 @@ function renderFlightsPanel(dateStr) {
     const rowBg = flying ? '#0d2218' : (m.hasResult && !ok) ? '#2d0a0a' : isNight ? '#0d0a1e' : assumedDone ? '#111a11' : '#0d1f1a';
     const rowBorder = isNight ? 'border-left:3px solid #7c3aed;' : '';
     const shiftIcon = isNight ? '🌙 ' : '☀️ ';
-    const landingTimeCell = flying ? `<span style="color:#f59e0b;font-style:italic">Pending</span>` : (m.disarmTime && m.disarmTime !== '—' ? fmtTime(m.disarmTime) : '—');
-    return `<tr style="background:${rowBg};${rowBorder}"><td>${shiftIcon}${fmtTime(m.armTime)}</td><td>${m.rcOp.replace(' DHL','')}</td><td>${m.drone}</td><td>${m.aisle}</td><td>#${m.batt}</td><td>${landingTimeCell}</td><td>${formatDuration(m.duration)}</td><td>${m.logId || '—'}</td><td>${badge}</td></tr>`;
+    const aisleMed = (() => { const v = (window._aisleMedian || {})[m.aisle]; return v ? Math.round(v) : null; })();
+    const estDisarm = (() => {
+      if (m.hasResult || flying || !aisleMed || !m.armTime || m.armTime === '—') return null;
+      const base = parseMissionTime(m.armTime) || armMins(m.armTime);
+      if (!base && base !== 0) return null;
+      const estMin = base + aisleMed;
+      const h24 = Math.floor(estMin / 60) % 24;
+      const mm = String(estMin % 60).padStart(2, '0');
+      return `${String(h24).padStart(2, '0')}:${mm}`;
+    })();
+    const landingTimeCell = flying
+      ? `<span style="color:#f59e0b;font-style:italic">Pending</span>`
+      : (m.disarmTime && m.disarmTime !== '—')
+        ? fmtTime(m.disarmTime)
+        : estDisarm
+          ? `<span style="color:#64748b" title="Estimated from aisle avg">~${estDisarm}<span style="font-size:0.65rem;color:#475569"> est.</span></span>`
+          : '—';
+    const durCell = m.duration !== null
+      ? formatDuration(m.duration)
+      : (assumedDone && aisleMed)
+        ? `<span style="color:#64748b" title="Estimated from aisle avg">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>`
+        : '—';
+    return `<tr style="background:${rowBg};${rowBorder}"><td>${shiftIcon}${fmtTime(m.armTime)}</td><td>${m.rcOp.replace(' DHL','')}</td><td>${m.drone}</td><td>${m.aisle}</td><td>#${m.batt}</td><td>${landingTimeCell}</td><td>${durCell}</td><td>${m.logId || '—'}</td><td>${badge}</td></tr>`;
   }).join('');
 
   const assumedNote = assumed > 0 ? `<div style="font-size:0.68rem;color:#64748b;margin-top:8px">* Done* = no form submitted — assumed complete (${assumed} flight${assumed>1?'s':''})</div>` : '';
