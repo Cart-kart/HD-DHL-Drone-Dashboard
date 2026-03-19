@@ -609,10 +609,27 @@ function renderDashboard(missions, batteryMap) {
   const battVoltages = missions.filter(m => m.landingV && m.landingV > 6);
   const avgBatt = battVoltages.length ? (battVoltages.reduce((s, m) => s + m.landingV, 0) / battVoltages.length).toFixed(2) : '—';
 
-  const totalFlightMins = missions.filter(m => m.duration !== null).reduce((s, m) => s + m.duration, 0);
-  const totalH = Math.floor(totalFlightMins / 60);
-  const totalM = totalFlightMins % 60;
-  const totalFlightStr = totalH > 0 ? `${totalH}h ${totalM}m` : `${totalM}m`;
+  // Build aisle median lookup for estimating no-disarm flight times
+  const _aisleDurs = {};
+  missions.forEach(m => {
+    if (m.aisle && m.aisle !== '—' && m.duration !== null)
+      (_aisleDurs[m.aisle] = _aisleDurs[m.aisle] || []).push(m.duration);
+  });
+  const _aisleMedian = {};
+  Object.entries(_aisleDurs).forEach(([a, durs]) => {
+    const s = [...durs].sort((x,y) => x-y);
+    _aisleMedian[a] = s[Math.floor(s.length / 2)];
+  });
+  // Total flight time: actual duration or aisle median estimate for no-disarm rows
+  const totalFlightMins = missions.reduce((sum, m) => {
+    if (m.duration !== null) return sum + m.duration;
+    const est = _aisleMedian[m.aisle];
+    return est ? sum + est : sum;
+  }, 0);
+  const totalFlightStr = (() => {
+    const h = Math.floor(totalFlightMins / 60), mn = totalFlightMins % 60;
+    return h > 0 ? `${h}h ${mn}m` : `${mn}m`;
+  })();
 
   document.getElementById('stats').innerHTML = `
     <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm</div></div>
@@ -620,7 +637,7 @@ function renderDashboard(missions, batteryMap) {
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => o.replace(' DHL','')).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
-    <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} missions with duration</div></div>
+    <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} confirmed · ${missions.filter(m => m.duration === null && _aisleMedian[m.aisle]).length} est. from aisle avg</div></div>
   `;
 
   // Chart: Missions per day
