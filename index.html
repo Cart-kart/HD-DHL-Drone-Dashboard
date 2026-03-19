@@ -604,7 +604,9 @@ function renderDashboard(missions, batteryMap) {
   const failed = withResult.filter(m => m.completed.includes('ไม่เสร็จ')).length;
   const noData = 0; // now counted under assumed
   const rate = total ? Math.round(completed / total * 100) : 0;
-  const operators = [...new Set(missions.map(m => m.person))];
+  const RESIGNED = ['คุณเหว่า'];
+  const normName = n => n.replace(/ DHL$/i,'').replace(/นักบิน AVILON/i,'นักบิน Avilon').trim();
+  const operators = [...new Set(missions.map(m => normName(m.person)).filter(Boolean))];
   const avgDuration = withResult.filter(m => m.duration).reduce((s, m) => s + m.duration, 0) / (withResult.filter(m => m.duration).length || 1);
   const battVoltages = missions.filter(m => m.landingV && m.landingV > 6);
   const avgBatt = battVoltages.length ? (battVoltages.reduce((s, m) => s + m.landingV, 0) / battVoltages.length).toFixed(2) : '—';
@@ -635,7 +637,7 @@ function renderDashboard(missions, batteryMap) {
     <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm</div></div>
     <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span></div></div>
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
-    <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => o.replace(' DHL','')).join(', ')}</div></div>
+    <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
     <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} confirmed · ${missions.filter(m => m.duration === null && _aisleMedian[m.aisle]).length} est. from aisle avg</div></div>
   `;
