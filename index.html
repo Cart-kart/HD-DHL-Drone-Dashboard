@@ -86,7 +86,7 @@
   .cal-day.annual-event .cal-count { color:#fbbf24; }
   .cal-day.annual-event .cal-num { color:#a16207; }
   /* Annual event completed badge in stats card */
-  .event-badge { display:inline-flex; align-items:center; gap:5px; background:linear-gradient(90deg,#78350f88,#92400e88); border:1px solid #f59e0b; border-radius:5px; padding:3px 9px; font-size:0.68rem; color:#fde68a; font-weight:600; margin-top:5px; white-space:nowrap; }
+  .event-badge { display:inline-flex; align-items:flex-start; gap:5px; background:linear-gradient(90deg,#78350f88,#92400e88); border:1px solid #f59e0b; border-radius:5px; padding:3px 9px; font-size:0.68rem; color:#fde68a; font-weight:600; margin-top:5px; line-height:1.4; }
   @keyframes eventglow { 0%,100%{box-shadow:0 0 5px #f59e0b44} 50%{box-shadow:0 0 12px #f59e0baa} }
   .event-badge { animation:eventglow 2.2s ease-in-out infinite; }
 
@@ -749,8 +749,8 @@ function renderDashboard(missions, batteryMap) {
   })();
 
   document.getElementById('stats').innerHTML = `
-    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm<br><span style="color:#f59e0b;font-size:0.66rem">+${ANNUAL_TOTAL} Annual Stock Count (1–2 Oct 2025)</span></div></div>
-    <div class="card green"><div class="label">Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span><br><div class="event-badge">🏆 ${ANNUAL_COMPLETED} Annual Stock Count · 100% · 1–2 Oct 2025</div></div></div>
+    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm<br><div class="event-badge">🏆 Annual Stock Count<br>+${ANNUAL_TOTAL} flights · 1–2 Oct 2025</div></div></div>
+    <div class="card green"><div class="label">Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span><br><div class="event-badge">🏆 Annual Stock Count<br>${ANNUAL_COMPLETED} flights · 100% · 1–2 Oct 2025</div></div></div>
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
