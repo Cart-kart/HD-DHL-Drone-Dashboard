@@ -115,8 +115,11 @@
   /* Battery chart hint */
   .chart-hint { font-size: 0.67rem; color: #475569; font-style: italic; margin-bottom: 8px; margin-top: -6px; }
   /* Historical data toggle */
-  #histToggle { background: #1e293b; border: 1px solid #334155; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; transition: all 0.2s; }
-  #histToggle.active { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+  .view-btn-group { display:flex; gap:2px; }
+  .view-btn { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:4px 11px; cursor:pointer; font-size:0.75rem; transition:all 0.2s; }
+  .view-btn:first-child { border-radius:6px 0 0 6px; }
+  .view-btn:last-child  { border-radius:0 6px 6px 0; }
+  .view-btn.active { background:#7c3aed; border-color:#7c3aed; color:#fff; }
   #histBadge { display:none; background: #7c3aed; color: #fff; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; vertical-align: middle; margin-left: 6px; }
 </style>
 </head>
@@ -133,7 +136,11 @@
   <select id="site-select" onchange="onSiteChange()" style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 12px;font-size:0.78rem;cursor:pointer;margin-left:auto;">
     <option value="dhl">Harley Davidson</option>
   </select>
-  <button id="histToggle" onclick="toggleHistorical()" title="Show all Harley site flights (Jun 2025 – now)">📊 Total Site Flights</button>
+  <div class="view-btn-group">
+    <button class="view-btn" id="btnView2025" onclick="setViewMode('2025')">2025</button>
+    <button class="view-btn active" id="btnView2026" onclick="setViewMode('2026')">2026</button>
+    <button class="view-btn" id="btnViewAll" onclick="setViewMode('all')">All</button>
+  </div>
   <button id="refresh-btn" onclick="loadData()" style="margin-left:0">↺ Refresh</button>
 </header>
 
@@ -650,11 +657,11 @@ function processData(rows) {
     : batteryMap;
   window._liveMissions = allLiveMissions;
   window._liveBatteryMap = allLiveBattMap;
-  if (_historicalMode) {
-    // stay in merged view — re-merge with updated live data
+  if (_viewMode === 'all') {
     const merged = [...STATIC_MISSIONS_FILTERED, ...allLiveMissions];
-    const mergedBM = buildBatteryMapFromMissions(merged);
-    renderDashboard(merged, mergedBM);
+    renderDashboard(merged, buildBatteryMapFromMissions(merged));
+  } else if (_viewMode === '2025') {
+    renderDashboard([...STATIC_MISSIONS_FILTERED], buildBatteryMapFromMissions(STATIC_MISSIONS_FILTERED));
   } else {
     renderDashboard(allLiveMissions, allLiveBattMap);
   }
@@ -700,9 +707,11 @@ function renderDashboard(missions, batteryMap) {
   const failed = withResult.filter(m => m.completed.includes('ไม่เสร็จ')).length;
   const noData = 0; // now counted under assumed
   const rate = total ? Math.round(completed / total * 100) : 0;
-  // Grand totals including annual events
-  const grandTotal = total + ANNUAL_TOTAL;
-  const grandCompleted = completed + ANNUAL_COMPLETED;
+  // Grand totals including annual events — only in 2025 view
+  const annualBonus = _viewMode === '2025' ? ANNUAL_TOTAL : 0;
+  const annualCompBonus = _viewMode === '2025' ? ANNUAL_COMPLETED : 0;
+  const grandTotal = total + annualBonus;
+  const grandCompleted = completed + annualCompBonus;
   const grandRate = Math.round(grandCompleted / grandTotal * 100);
   const RESIGNED = ['คุณเหว่า'];
   const normName = n => n.replace(/ DHL$/i,'').replace(/นักบิน AVILON/i,'นักบิน Avilon').trim();
@@ -749,8 +758,8 @@ function renderDashboard(missions, batteryMap) {
   })();
 
   document.getElementById('stats').innerHTML = `
-    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm<br><div class="event-badge">🏆 Annual Stock Count<br>+${ANNUAL_TOTAL} flights · 1–2 Oct 2025</div></div></div>
-    <div class="card green"><div class="label">Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span><br><div class="event-badge">🏆 Annual Stock Count<br>${ANNUAL_COMPLETED} flights · 100% · 1–2 Oct 2025</div></div></div>
+    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm${_viewMode==='2025'?`<br><div class="event-badge">🏆 Annual Stock Count<br>+${ANNUAL_TOTAL} flights · 1–2 Oct 2025</div>`:''}</div></div>
+    <div class="card green"><div class="label">Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span>${_viewMode==='2025'?`<br><div class="event-badge">🏆 Annual Stock Count<br>${ANNUAL_COMPLETED} flights · 100% · 1–2 Oct 2025</div>`:''}</div></div>
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
@@ -762,8 +771,9 @@ function renderDashboard(missions, batteryMap) {
   missions.forEach(m => {
     dayMap[m.date] = (dayMap[m.date] || 0) + 1;
   });
-  // Add annual event days
-  ANNUAL_EVENTS.forEach(e => { dayMap[e.date] = e.flights; });
+  // Add annual event days to calendar/chart — 2025 data only
+  if (_viewMode === '2025' || _viewMode === 'all')
+    ANNUAL_EVENTS.forEach(e => { dayMap[e.date] = (dayMap[e.date] || 0) + e.flights; });
   const dayLabels = Object.keys(dayMap).sort((a, b) => {
     const [am,ad,ay] = a.split('/').map(Number);
     const [bm,bd,by] = b.split('/').map(Number);
@@ -1745,25 +1755,34 @@ function buildBatteryMapFromMissions(missions) {
   return bm;
 }
 
-let _historicalMode = false;
-function toggleHistorical() {
-  _historicalMode = !_historicalMode;
-  const btn = document.getElementById('histToggle');
+let _viewMode = '2026';
+function setViewMode(mode) {
+  _viewMode = mode;
+  ['2025','2026','all'].forEach(m => {
+    const btn = document.getElementById('btnView' + (m==='all'?'All':m));
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
   const badge = document.getElementById('histBadge');
-  if (_historicalMode) {
-    btn.classList.add('active');
-    badge.style.display = 'inline';
-    document.getElementById('countdown').textContent = 'all data';
-    // Merge historical + live and re-render
-    const live = window._liveMissions || [];
-    const merged = [...STATIC_MISSIONS_2025, ...live];
+  if (badge) {
+    badge.style.display = mode !== '2026' ? 'inline' : 'none';
+    badge.textContent = mode === '2025' ? '📊 2025 Site Flights' : mode === 'all' ? '📊 All Site Flights' : '';
+  }
+  const live = window._liveMissions || [];
+  if (mode === 'all') {
+    const merged = [...STATIC_MISSIONS_FILTERED, ...live];
     const bm = buildBatteryMapFromMissions(merged);
     window._lastMissions = merged;
     renderDashboard(merged, bm);
+    document.getElementById('countdown').textContent = 'all data';
+  } else if (mode === '2025') {
+    const missions25 = [...STATIC_MISSIONS_FILTERED];
+    const bm = buildBatteryMapFromMissions(missions25);
+    window._lastMissions = missions25;
+    renderDashboard(missions25, bm);
+    document.getElementById('countdown').textContent = '2025 data';
   } else {
-    btn.classList.remove('active');
-    badge.style.display = 'none';
-    loadData();
+    _origLoadData();
+    startCountdown();
   }
 }
 
@@ -1788,7 +1807,7 @@ function startCountdown() {
 
 const _origLoadData = loadData;
 loadData = function() {
-  if (_historicalMode) return;
+  if (_viewMode !== '2026') return;
   _origLoadData();
   startCountdown();
 };
