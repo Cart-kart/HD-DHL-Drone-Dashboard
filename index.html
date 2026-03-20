@@ -9,9 +9,10 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
-  header { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 1.25rem; font-weight: 700; color: #1e293b; }
+  header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.25rem; font-weight: 700; color: #f8fafc; }
   header span { font-size: 0.75rem; color: #64748b; background: transparent; padding: 2px 8px; border-radius: 9999px; }
+  header img { background: #fff; border-radius: 6px; padding: 3px; }
   #refresh-btn { margin-left: auto; background: #3b82f6; border: none; color: white; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
   #refresh-btn:hover { background: #2563eb; }
   #loading { text-align: center; padding: 60px; color: #64748b; }
@@ -169,13 +170,13 @@
 <header>
   <img src="AR-New-LOGO.png" alt="Avilon Robotics" style="height:40px;width:auto;flex-shrink:0;">
   <div>
-    <div style="font-size:0.65rem;color:#1d4ed8;font-weight:600;letter-spacing:0.1em;">AVILON ROBOTICS</div>
+    <div style="font-size:0.65rem;color:#3b82f6;font-weight:600;letter-spacing:0.1em;">AVILON ROBOTICS</div>
     <h1>Drone Mission Dashboard<span id="histBadge">📊 Total Site Flights — Jun 2025 to now</span></h1>
-    <div style="font-size:0.6rem;color:#94a3b8;margin-top:2px;letter-spacing:0.05em;">V.0.5</div>
+    <div style="font-size:0.6rem;color:#475569;margin-top:2px;letter-spacing:0.05em;">V.0.5</div>
   </div>
-  <span id="data-source" style="font-size:0.7rem;color:#94a3b8;">connecting...</span>
-  <span id="auto-refresh-indicator" style="font-size:0.7rem;color:#94a3b8;">next refresh in <strong id="countdown">1:00</strong></span>
-  <select id="site-select" onchange="onSiteChange()" style="background:#f1f5f9;color:#1e293b;border:1px solid #cbd5e1;border-radius:6px;padding:5px 12px;font-size:0.78rem;cursor:pointer;margin-left:auto;">
+  <span id="data-source" style="font-size:0.7rem;color:#64748b;">connecting...</span>
+  <span id="auto-refresh-indicator" style="font-size:0.7rem;color:#64748b;">next refresh in <strong id="countdown">1:00</strong></span>
+  <select id="site-select" onchange="onSiteChange()" style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 12px;font-size:0.78rem;cursor:pointer;margin-left:auto;">
     <option value="dhl">Harley Davidson</option>
   </select>
   <div class="view-btn-group">
