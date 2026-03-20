@@ -345,7 +345,7 @@ function parseMissionTime(timeStr) {
 }
 
 function missionDuration(arm, disarm) {
-  const a = parseMissionTime(arm), d = parseMissionTime(disarm);
+  const a = parseAnyTime(arm), d = parseAnyTime(disarm);
   if (a === null || d === null) return null;
   let diff = d - a;
   if (diff < 0) diff += 24 * 60;
@@ -374,12 +374,27 @@ function fmtTime(timeStr) {
   const h = Math.floor(mins / 60), m = mins % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
+// Parse any time format: "8:35:00 AM" or "HH:MM" 24h — returns minutes since midnight or null
+function parseAnyTime(t) {
+  if (!t || t === '—') return null;
+  const v = parseMissionTime(t);
+  if (v !== null) return v;
+  const hm = t.match(/^(\d{1,2}):(\d{2})/);
+  return hm ? parseInt(hm[1]) * 60 + parseInt(hm[2]) : null;
+}
 function fmtDisarm(armTime, disarmTime) {
   if (!disarmTime || disarmTime === '—') return '—';
   const formatted = fmtTime(disarmTime);
-  const aMin = parseMissionTime(armTime), dMin = parseMissionTime(disarmTime);
+  const aMin = parseAnyTime(armTime), dMin = parseAnyTime(disarmTime);
   if (aMin !== null && dMin !== null && dMin < aMin) {
-    return formatted + '<span style="font-size:0.65rem;color:#f59e0b;margin-left:3px">(next day)</span>';
+    const crossedMins = dMin + 1440 - aMin;
+    if (crossedMins <= 60) {
+      // genuine midnight crossing (e.g. arm 23:45 → disarm 00:10)
+      return formatted + '<span style="font-size:0.65rem;color:#f59e0b;margin-left:3px">(next day)</span>';
+    } else {
+      // bad operator input — disarm before arm but not a real crossing
+      return `<span style="color:#f97316" title="Bad input: disarm before arm time">${formatted} ⚠️</span>`;
+    }
   }
   return formatted;
 }
@@ -1002,7 +1017,7 @@ function renderMissionPage(page) {
     // Estimate landing time for no-disarm rows using aisle median
     const estDisarm = (() => {
       if (m.hasResult || !aisleMed || !m.armTime || m.armTime === '—') return null;
-      const base = parseMissionTime(m.armTime) || armMins(m.armTime);
+      const base = parseAnyTime(m.armTime);
       if (!base && base !== 0) return null;
       const estMin = base + aisleMed;
       const h24 = Math.floor(estMin / 60) % 24;
@@ -1170,7 +1185,7 @@ function renderFlightsPanel(dateStr) {
     const estTip = _todayAisleHasData ? 'Estimated from aisle avg' : 'Estimated from 2025 global avg (no aisle data)';
     const estDisarm = (() => {
       if (m.hasResult || !aisleMed || !m.armTime || m.armTime === '—') return null;
-      const base = parseMissionTime(m.armTime) || armMins(m.armTime);
+      const base = parseAnyTime(m.armTime);
       if (!base && base !== 0) return null;
       const estMin = base + aisleMed;
       const h24 = Math.floor(estMin / 60) % 24;
