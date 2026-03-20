@@ -95,6 +95,8 @@
   #batt-history-panel .bh-title { font-size: 0.72rem; color: #f59e0b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
   .bh-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid #1e293b; font-size: 0.73rem; color: #94a3b8; }
   .bh-row:first-of-type { border-top: none; }
+  .bh-row.clickable { cursor: pointer; border-radius: 4px; transition: background 0.12s; }
+  .bh-row.clickable:hover { background: #1e293b; }
   .bh-idx { color: #475569; width: 22px; flex-shrink: 0; }
   .bh-date { color: #64748b; width: 80px; flex-shrink: 0; }
   .bh-dur { color: #60a5fa; width: 50px; flex-shrink: 0; }
@@ -1540,10 +1542,14 @@ function renderAisleHistory(aisleId, rowEl) {
       : '<span class="badge ' + (ok?'ok':'fail') + '" style="font-size:0.65rem">' + (ok?'Done':'Fail') + '</span>';
     const _nd = '<span style="color:#475569;font-style:italic;font-size:0.72rem">no data</span>';
     const durStr = m.duration !== null ? m.duration + 'm' : _nd;
-    return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span>'
+    const droneShort = (m.drone || '—').replace('Photon ', '#');
+    const tsEsc = (m.ts || '').replace(/'/g, "\\'");
+    return '<div class="bh-row clickable" onclick="goToFlightLog(\'' + tsEsc + '\')">'
+      + '<span class="bh-idx">' + (i+1) + '</span>'
       + '<span class="bh-date">' + m.date + '</span>'
       + '<span class="bh-dur">' + fmtTime(m.armTime) + '</span>'
       + '<span style="width:50px;flex-shrink:0;font-size:0.72rem">' + durStr + '</span>'
+      + '<span style="width:46px;flex-shrink:0;font-size:0.7rem;color:#7dd3fc">' + droneShort + '</span>'
       + '<span style="flex:1;font-size:0.72rem;color:#94a3b8">#' + m.batt + ' · ' + m.person.replace(' DHL','') + '</span>'
       + '<span style="flex-shrink:0">' + status + '</span></div>';
   }).join('');
@@ -1593,10 +1599,14 @@ function renderBattHistory(battId) {
     const durStr = m.duration !== null ? m.duration + 'm' : _nd;
     const preV  = m.charge  && m.charge  > 6 ? m.charge.toFixed(2)  + 'V' : _nd;
     const postV = m.landingV && m.landingV > 6 ? m.landingV.toFixed(2) + 'V' : _nd;
-    return '<div class="bh-row"><span class="bh-idx">' + (i+1) + '</span>'
+    const droneShort = (m.drone || '—').replace('Photon ', '#');
+    const tsEsc = (m.ts || '').replace(/'/g, "\\'");
+    return '<div class="bh-row clickable" onclick="goToFlightLog(\'' + tsEsc + '\')">'
+      + '<span class="bh-idx">' + (i+1) + '</span>'
       + '<span class="bh-date">' + m.date + '</span>'
       + '<span class="bh-dur">' + durStr + '</span>'
       + '<span class="bh-aisle">' + m.aisle + '</span>'
+      + '<span style="width:40px;flex-shrink:0;font-size:0.7rem;color:#7dd3fc">' + droneShort + '</span>'
       + '<span style="width:52px;flex-shrink:0;color:#60a5fa;text-align:right">' + preV + '</span>'
       + '<span style="width:16px;flex-shrink:0;color:#475569;text-align:center">→</span>'
       + '<span style="width:52px;flex-shrink:0;color:#4ade80">' + postV + '</span>'
@@ -1606,6 +1616,7 @@ function renderBattHistory(battId) {
     + '<div style="display:flex;font-size:0.67rem;color:#475569;margin-bottom:6px;flex-shrink:0">'
     + '<span style="width:22px"></span><span style="width:80px">Date</span>'
     + '<span style="width:50px">Dur</span><span style="flex:1">Aisle</span>'
+    + '<span style="width:40px;color:#7dd3fc">Drone</span>'
     + '<span style="color:#60a5fa;width:52px;text-align:right">Pre V</span>'
     + '<span style="width:16px;text-align:center"></span>'
     + '<span style="color:#4ade80;width:52px">Post V</span></div>'
