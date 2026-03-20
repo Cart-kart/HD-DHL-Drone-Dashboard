@@ -306,9 +306,13 @@ def process_rows(rows, cutoff_date):
         t3 = best['row'] if best else None
 
         # Validate t3 arm time: if >20 min before type2 submission ts, operator entered wrong time → use ts fallback
+        # Exception: if type3 disarm is already before type2 submission ts, the type2 was filed late
+        # (operator flew first, submitted checklist after) — trust type3 arm/disarm as-is
         arm_raw = get_col(t3, C_ARM_TIME) if t3 else ''
         arm_t3_min = parse_time_mins(arm_raw)
-        bad_arm = arm_t3_min >= 0 and (ts_min - arm_t3_min) > 20
+        t3_disarm_min = parse_time_mins(get_col(t3, C_DISARM_TIME)) if t3 else -1
+        late_type2 = t3_disarm_min >= 0 and t3_disarm_min < ts_min
+        bad_arm = arm_t3_min >= 0 and (ts_min - arm_t3_min) > 20 and not late_type2
         arm_time = fmt_time(ts_str.split(' ')[1] if ' ' in ts_str else '') if (not t3 or not arm_raw or bad_arm) else fmt_time(arm_raw)
         disarm_time = fmt_time(get_col(t3, C_DISARM_TIME)) if t3 else '—'
         completed = get_col(t3, C_COMPLETED) if t3 else ''
