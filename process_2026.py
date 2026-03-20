@@ -322,7 +322,7 @@ def process_rows(rows, cutoff_date):
             lv = parse_landing_v(raw_landing_v)
             landing_v = norm_total(lv) if lv is not None and lv > 1 else None
 
-        duration = mission_duration(get_col(t3, C_ARM_TIME), get_col(t3, C_DISARM_TIME)) if t3 else None
+        duration = mission_duration(arm_time, get_col(t3, C_DISARM_TIME)) if t3 else None
 
         missions.append({
             'date': date_str,
