@@ -955,6 +955,15 @@ function renderDashboard(missions, batteryMap) {
   document.getElementById('dashboard').style.display = 'block';
 }
 
+function copyFailsafe(btn, drone, logId, date, armTime) {
+  const text = `Drone: ${drone}\nLog ID: ${logId}\nFailsafe time: ${date} ${armTime}\nAIBOX: AIBOX1`;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓';
+    btn.style.color = '#4ade80';
+    setTimeout(() => { btn.textContent = '📄'; btn.style.color = ''; }, 1500);
+  });
+}
+
 let _missionSorted = [];
 let _missionPage = 0;
 const MISSION_PAGE_SIZE = 20;
@@ -1016,7 +1025,8 @@ function renderMissionPage(page) {
         durCell = aisleMed ? `<span style="color:#64748b" title="${estTip}">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>` : '—';
       }
     } else {
-      statusCell = `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
+      const _copyBtn = !ok ? ` <button onclick="copyFailsafe(this,'${(m.drone||'—').replace(/'/g,"\\'")}','${m.logId}','${m.date}','${m.armTime}')" title="Copy failsafe info for dev" style="background:none;border:none;cursor:pointer;font-size:0.95rem;padding:0 2px;vertical-align:middle;line-height:1">📄</button>` : '';
+      statusCell = `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>${_copyBtn}`;
       noteCell = `<span style="color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${m.reason}">${m.reason || ''}</span>`;
       disarmCell = fmtDisarm(m.armTime, m.disarmTime);
       durCell = formatDuration(m.duration);
