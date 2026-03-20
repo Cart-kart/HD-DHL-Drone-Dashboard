@@ -149,7 +149,11 @@
     .card .value { font-size: 1.4rem; }
     .charts-grid { grid-template-columns: 1fr; }
     .aisle-overview-grid { grid-template-columns: 1fr; }
-    .drone-card { min-width: 140px; }
+    .drone-card { min-width: 0; flex: 1 1 calc(50% - 5px); padding: 8px 10px; gap: 6px; flex-wrap: wrap; }
+    .drone-card .dc-name { font-size: 0.75rem; }
+    .drone-card .dc-stats { font-size: 0.65rem; }
+    .drone-card .dc-badge { font-size: 0.58rem; padding: 1px 5px; }
+    #drone-strip { gap: 6px; }
     .today-stats { gap: 12px; }
     .today-stat .ts-val { font-size: 1.2rem; }
     /* Hide less-critical table columns on narrow screens */
@@ -834,7 +838,7 @@ function renderDashboard(missions, batteryMap) {
       <div>
         <div class="dc-name">${name}</div>
         <div class="dc-stats" style="margin-top:3px"><span>${d.flights}</span> flights · avg <span>${avgDur !== null ? avgDur+'m' : '—'}</span></div>
-        <div class="dc-stats" style="margin-top:1px">total: <span>${totalDurStr}</span> · last: <span>${lastDate}</span></div>
+        <div class="dc-stats" style="margin-top:1px"><span>${totalDurStr}</span> total · <span>${lastDate}</span></div>
       </div>
       <div style="margin-left:auto"><span class="dc-badge">${isActive?'● Active':'○ Inactive'}</span></div>
     </div>`;
