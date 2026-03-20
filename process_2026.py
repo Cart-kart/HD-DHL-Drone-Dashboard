@@ -305,7 +305,11 @@ def process_rows(rows, cutoff_date):
             best['used'] = True
         t3 = best['row'] if best else None
 
-        arm_time = fmt_time(get_col(t3, C_ARM_TIME)) if t3 else fmt_time(ts_str.split(' ')[1] if ' ' in ts_str else '')
+        # Validate t3 arm time: if >20 min before type2 submission ts, operator entered wrong time → use ts fallback
+        arm_raw = get_col(t3, C_ARM_TIME) if t3 else ''
+        arm_t3_min = parse_time_mins(arm_raw)
+        bad_arm = arm_t3_min >= 0 and (ts_min - arm_t3_min) > 20
+        arm_time = fmt_time(ts_str.split(' ')[1] if ' ' in ts_str else '') if (not t3 or not arm_raw or bad_arm) else fmt_time(arm_raw)
         disarm_time = fmt_time(get_col(t3, C_DISARM_TIME)) if t3 else '—'
         completed = get_col(t3, C_COMPLETED) if t3 else ''
         reason = get_col(t3, C_REASON) if t3 else ''
