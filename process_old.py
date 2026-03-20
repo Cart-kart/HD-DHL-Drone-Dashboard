@@ -1,7 +1,7 @@
 import csv, json, re
 from datetime import datetime
 
-with open('C:/Users/A/AppData/Local/Temp/old-dashboard.csv', encoding='utf-8') as f:
+with open('D:/Claude Agent/Claude Project/RAW_DATA/H-D Checklist V.10NOV25 (Responses) 8_26_25-2_4_26 - Form Responses 1.csv', encoding='utf-8-sig') as f:
     rows = list(csv.reader(f))[1:]
 
 rows = [r + [''] * (58 - len(r)) for r in rows if any(c.strip() for c in r)]
@@ -27,6 +27,13 @@ def fmt_time(t):
     m = re.match(r'(\d{1,2}):(\d{2})(?::\d+)?\s*(AM|PM)', str(t), re.I)
     if not m: return str(t) if t else None
     return m.group(1) + ':' + m.group(2) + ' ' + m.group(3).upper()
+
+def fmt_ts_time(ts_str):
+    """Extract HH:MM from timestamp like '9/17/2025 13:48:45'."""
+    if not ts_str or ' ' not in ts_str: return None
+    t = ts_str.split(' ')[1]
+    m = re.match(r'(\d{1,2}):(\d{2})', t)
+    return f'{int(m.group(1)):02d}:{m.group(2)}' if m else None
 
 def to_date_ms(date_str):
     try:
@@ -91,7 +98,7 @@ for r in type2:
     t3 = best['row'] if best else None
 
     completed = t3[3].strip() if t3 else ''
-    arm_t = fmt_time(t3[5]) if t3 else None
+    arm_t = (fmt_time(t3[5]) if t3 and t3[5].strip() else None) or fmt_ts_time(ts)
     disarm_t = fmt_time(t3[6]) if t3 else None
     landing_v = None
     if t3:
@@ -121,6 +128,6 @@ print(f'Total missions: {len(missions)}, Done*: {done_star}')
 print(f'Date range: {dates_sorted[0]} to {dates_sorted[-1]}')
 print(f'Sample: {json.dumps(missions[0], ensure_ascii=False)}')
 
-with open('C:/Users/A/AppData/Local/Temp/old-missions.json', 'w', encoding='utf-8') as f:
+with open('C:/Users/A/AppData/Local/Temp/dashboard-repo/data/old-missions.json', 'w', encoding='utf-8') as f:
     json.dump(missions, f, ensure_ascii=False, separators=(',', ':'))
 print('Saved.')
