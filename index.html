@@ -1154,11 +1154,12 @@ function renderFlightsPanel(dateStr) {
     const bv = m.landingV && m.landingV > 6;
     const pct = bv ? pctFull(m.landingV) : 0;
     const col = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
+    const _dailyCopyBtn = (!flying && !assumedDone && !ok) ? ` <button onclick="event.stopPropagation();copyFailsafe(this,'${(m.drone||'—').replace(/'/g,"\\'")}','${m.logId}','${m.date}','${m.armTime}')" title="Copy failsafe info for dev" style="background:none;border:none;cursor:pointer;font-size:0.95rem;padding:0 2px;vertical-align:middle;line-height:1">📄</button>` : '';
     const badge = flying
       ? `<span class="badge flying">During Flight</span>`
       : assumedDone
         ? `<span class="badge assumed" title="No form submitted — assumed complete">Done*</span>`
-        : `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>`;
+        : `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>${_dailyCopyBtn}`;
     const shift = getShift(m.armTime);
     const isNight = shift === 'night';
     const rowBg = flying ? '#0d2218' : (m.hasResult && !ok) ? '#2d0a0a' : isNight ? '#0d0a1e' : assumedDone ? '#111a11' : '#0d1f1a';
