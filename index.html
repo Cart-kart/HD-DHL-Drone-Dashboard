@@ -81,6 +81,14 @@
   .badge.flying { background: #1c3a2a; color: #34d399; border: 1px solid #34d399; animation: flypulse 1.4s infinite; }
   .badge.assumed { background: #1a2e1a; color: #86efac; border: 1px dashed #4ade80; }
   @keyframes flypulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+  /* Annual event calendar cell */
+  .cal-day.annual-event { cursor:pointer; }
+  .cal-day.annual-event .cal-count { color:#fbbf24; }
+  .cal-day.annual-event .cal-num { color:#a16207; }
+  /* Annual event completed badge in stats card */
+  .event-badge { display:inline-flex; align-items:center; gap:5px; background:linear-gradient(90deg,#78350f88,#92400e88); border:1px solid #f59e0b; border-radius:5px; padding:3px 9px; font-size:0.68rem; color:#fde68a; font-weight:600; margin-top:5px; white-space:nowrap; }
+  @keyframes eventglow { 0%,100%{box-shadow:0 0 5px #f59e0b44} 50%{box-shadow:0 0 12px #f59e0baa} }
+  .event-badge { animation:eventglow 2.2s ease-in-out infinite; }
 
   #batt-history-panel { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; height: 220px; overflow-y: auto; display: flex; flex-direction: column; }
   #batt-history-panel .bh-empty { color: #475569; font-size: 0.78rem; font-style: italic; margin: auto; text-align: center; }
@@ -692,6 +700,10 @@ function renderDashboard(missions, batteryMap) {
   const failed = withResult.filter(m => m.completed.includes('ไม่เสร็จ')).length;
   const noData = 0; // now counted under assumed
   const rate = total ? Math.round(completed / total * 100) : 0;
+  // Grand totals including annual events
+  const grandTotal = total + ANNUAL_TOTAL;
+  const grandCompleted = completed + ANNUAL_COMPLETED;
+  const grandRate = Math.round(grandCompleted / grandTotal * 100);
   const RESIGNED = ['คุณเหว่า'];
   const normName = n => n.replace(/ DHL$/i,'').replace(/นักบิน AVILON/i,'นักบิน Avilon').trim();
   const operators = [...new Set(missions.map(m => normName(m.person)).filter(Boolean))];
@@ -737,8 +749,8 @@ function renderDashboard(missions, batteryMap) {
   })();
 
   document.getElementById('stats').innerHTML = `
-    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${total}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm</div></div>
-    <div class="card green"><div class="label">Completed</div><div class="value">${completed}</div><div class="sub">${rate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span></div></div>
+    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm<br><span style="color:#f59e0b;font-size:0.66rem">+${ANNUAL_TOTAL} Annual Stock Count (1–2 Oct 2025)</span></div></div>
+    <div class="card green"><div class="label">Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span><br><div class="event-badge">🏆 ${ANNUAL_COMPLETED} Annual Stock Count · 100% · 1–2 Oct 2025</div></div></div>
     <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
     <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
     <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
@@ -750,6 +762,8 @@ function renderDashboard(missions, batteryMap) {
   missions.forEach(m => {
     dayMap[m.date] = (dayMap[m.date] || 0) + 1;
   });
+  // Add annual event days
+  ANNUAL_EVENTS.forEach(e => { dayMap[e.date] = e.flights; });
   const dayLabels = Object.keys(dayMap).sort((a, b) => {
     const [am,ad,ay] = a.split('/').map(Number);
     const [bm,bd,by] = b.split('/').map(Number);
@@ -1295,18 +1309,23 @@ function drawCalendar() {
     const si = calShiftMap[key] || { day: 0, night: 0 };
     const alpha = count ? 0.15 + (count / maxFlights) * 0.7 : 0;
     const hasDay = si.day > 0, hasNight = si.night > 0;
+    const annualEv = ANNUAL_EVENT_DATES.has(key) ? ANNUAL_EVENTS.find(e => e.date === key) : null;
     const bg = !count ? '#0f172a'
+      : annualEv ? `rgba(245,158,11,${Math.max(alpha, 0.35)})`
       : (hasDay && hasNight)
         ? `linear-gradient(135deg, rgba(59,130,246,${alpha}) 50%, rgba(124,58,237,${alpha}) 50%)`
         : hasNight ? `rgba(124,58,237,${alpha})`
         : `rgba(59,130,246,${alpha})`;
     const todayClass = isToday ? ' today' : '';
     const hasClass = count ? ' has-data' : '';
+    const annualClass = annualEv ? ' annual-event' : '';
     const clickAttr = count ? ` onclick="calSelectDate('${calMonth+1}/${d}/${calYear}')"` : '';
     const selClass = selectedCalDate === `${calMonth+1}/${d}/${calYear}` ? ' selected' : '';
-    html += `<div class="cal-day${hasClass}${todayClass}${selClass}" style="background:${bg}"${clickAttr}>
+    const annualIcon = annualEv ? `<div style="font-size:0.6rem;color:#fbbf24;text-align:center;line-height:1;margin-top:1px" title="${annualEv.label} · ${annualEv.note}">🏆</div>` : '';
+    html += `<div class="cal-day${hasClass}${todayClass}${selClass}${annualClass}" style="background:${bg}"${clickAttr}>
       <div class="cal-num">${d}</div>
       ${count ? `<div class="cal-count">${count}</div>` : ''}
+      ${annualIcon}
     </div>`;
   }
   html += '</div>';
@@ -1697,6 +1716,15 @@ const STATIC_MISSIONS_FILTERED = STATIC_MISSIONS_2025
       return { ...m, batt: m.batt === 'B71' ? 'B79' : '79' };
     return m;
   });
+
+// Annual Stock Counting event — not recorded in form, hard-coded here
+const ANNUAL_EVENTS = [
+  { date: '10/1/2025', label: 'Annual Stock Count — External', flights: 49, completed: 49, note: 'E01–E49 · All external aisles' },
+  { date: '10/2/2025', label: 'Annual Stock Count — Inplant',  flights: 34, completed: 34, note: 'N01–N34 · All inplant aisles' },
+];
+const ANNUAL_EVENT_DATES = new Set(ANNUAL_EVENTS.map(e => e.date));
+const ANNUAL_TOTAL     = ANNUAL_EVENTS.reduce((s, e) => s + e.flights, 0);
+const ANNUAL_COMPLETED = ANNUAL_EVENTS.reduce((s, e) => s + e.completed, 0);
 
 function buildBatteryMapFromMissions(missions) {
   const bm = {};
