@@ -825,7 +825,7 @@ function renderDashboard(missions, batteryMap) {
   const latestMs = Math.max(...Object.values(droneMap).map(d => d.lastMs));
   const dronesSorted = Object.entries(droneMap).filter(([n]) => n !== '—').sort((a,b) => b[1].flights - a[1].flights);
   document.getElementById('drone-strip').innerHTML = dronesSorted.map(([name, d]) => {
-    const isActive = (latestMs - d.lastMs) < 60 * 24 * 60 * 60 * 1000; // active if flown within 60 days of latest
+    const isActive = name === 'Photon 400';
     const avgDur = d.durs.length ? Math.round(d.durs.reduce((s,v)=>s+v,0)/d.durs.length) : null;
     const lastDate = new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
     return `<div class="drone-card ${isActive?'active-drone':'inactive-drone'}">
