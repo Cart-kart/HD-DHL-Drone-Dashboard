@@ -882,8 +882,11 @@ function renderDashboard(missions, batteryMap) {
   </tr>`;
   }).join('');
 
-  // Store all site missions for year filter, then render aisle overview
-  window._allSiteMissions = [...STATIC_MISSIONS_FILTERED, ...(window._liveMissions || missions)];
+  // Store missions scoped to current view mode for aisle overview
+  const _live = window._liveMissions || missions;
+  window._allSiteMissions = _viewMode === '2025' ? [...STATIC_MISSIONS_FILTERED]
+    : _viewMode === '2026' ? [..._live]
+    : [...STATIC_MISSIONS_FILTERED, ..._live];
   window._lastAisleMap = aisleMap;
   window._lastAisleLastFlight = aisleLastFlight;
   // Re-apply year filter if one is selected
