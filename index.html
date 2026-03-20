@@ -657,13 +657,19 @@ function processData(rows) {
     : batteryMap;
   window._liveMissions = allLiveMissions;
   window._liveBatteryMap = allLiveBattMap;
+  // STATIC_MISSIONS_FILTERED spans Sep 2025 – Jan 2026; split by calendar year
+  const _static25 = STATIC_MISSIONS_FILTERED.filter(m => m.date && m.date.endsWith('/2025'));
+  const _static26old = STATIC_MISSIONS_FILTERED.filter(m => m.date && m.date.endsWith('/2026'));
+  window._static25 = _static25;
+  window._static26old = _static26old;
   if (_viewMode === 'all') {
     const merged = [...STATIC_MISSIONS_FILTERED, ...allLiveMissions];
     renderDashboard(merged, buildBatteryMapFromMissions(merged));
   } else if (_viewMode === '2025') {
-    renderDashboard([...STATIC_MISSIONS_FILTERED], buildBatteryMapFromMissions(STATIC_MISSIONS_FILTERED));
+    renderDashboard(_static25, buildBatteryMapFromMissions(_static25));
   } else {
-    renderDashboard(allLiveMissions, allLiveBattMap);
+    const m26 = [..._static26old, ...allLiveMissions];
+    renderDashboard(m26, buildBatteryMapFromMissions(m26));
   }
 }
 
@@ -1771,6 +1777,8 @@ function setViewMode(mode) {
     badge.textContent = mode === '2025' ? '📊 2025 Site Flights' : mode === 'all' ? '📊 All Site Flights' : '';
   }
   const live = window._liveMissions || [];
+  const s25 = window._static25 || STATIC_MISSIONS_FILTERED.filter(m => m.date && m.date.endsWith('/2025'));
+  const s26old = window._static26old || STATIC_MISSIONS_FILTERED.filter(m => m.date && m.date.endsWith('/2026'));
   if (mode === 'all') {
     const merged = [...STATIC_MISSIONS_FILTERED, ...live];
     const bm = buildBatteryMapFromMissions(merged);
@@ -1778,10 +1786,9 @@ function setViewMode(mode) {
     renderDashboard(merged, bm);
     document.getElementById('countdown').textContent = 'all data';
   } else if (mode === '2025') {
-    const missions25 = [...STATIC_MISSIONS_FILTERED];
-    const bm = buildBatteryMapFromMissions(missions25);
-    window._lastMissions = missions25;
-    renderDashboard(missions25, bm);
+    const bm = buildBatteryMapFromMissions(s25);
+    window._lastMissions = s25;
+    renderDashboard(s25, bm);
     document.getElementById('countdown').textContent = '2025 data';
   } else {
     _origLoadData();
