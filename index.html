@@ -202,6 +202,33 @@
     0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)}
   }
   .pin-card.shake { animation: pin-shake 0.4s ease; }
+
+  /* Drone card status dropdown */
+  .dc-status-wrap { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .dc-status-select {
+    background: #0f172a; border: 1px solid #334155; color: #94a3b8;
+    font-size: 0.65rem; font-weight: 600; border-radius: 4px;
+    padding: 3px 6px; cursor: pointer; outline: none;
+  }
+  .drone-card.active-drone .dc-status-select { color: #34d399; border-color: #34d399; }
+  .drone-card.inactive-drone .dc-status-select { color: #475569; }
+  /* Status confirm modal */
+  #drone-status-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 8000; align-items: center; justify-content: center;
+  }
+  #drone-status-modal.show { display: flex; }
+  .dsm-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+    padding: 28px 32px; width: 300px; text-align: center;
+  }
+  .dsm-title { font-size: 0.9rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+  .dsm-sub { font-size: 0.75rem; color: #94a3b8; margin-bottom: 22px; }
+  .dsm-btns { display: flex; gap: 10px; justify-content: center; }
+  .dsm-yes { background: #3b82f6; border: none; color: #fff; padding: 8px 24px; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 0.82rem; }
+  .dsm-yes:hover { background: #2563eb; }
+  .dsm-no { background: #1e293b; border: 1px solid #475569; color: #94a3b8; padding: 8px 24px; border-radius: 7px; cursor: pointer; font-size: 0.82rem; }
+  .dsm-no:hover { background: #334155; }
 </style>
 </head>
 <body>
@@ -890,30 +917,74 @@ function renderDashboard(missions, batteryMap) {
   const droneMap = {};
   missions.forEach(m => {
     const d = m.drone || '—';
-    if (!droneMap[d]) droneMap[d] = { flights: 0, durs: [], lastMs: 0 };
+    if (!droneMap[d]) droneMap[d] = { flights: 0, durs: [], lastMs: 0, firstMs: Infinity };
     droneMap[d].flights++;
     if (m.duration !== null) droneMap[d].durs.push(m.duration);
     const [mn,dd,yy] = m.date.split('/').map(Number);
     const ms = new Date(yy,mn-1,dd).getTime();
     if (ms > droneMap[d].lastMs) droneMap[d].lastMs = ms;
+    if (ms < droneMap[d].firstMs) droneMap[d].firstMs = ms;
   });
   const latestMs = Math.max(...Object.values(droneMap).map(d => d.lastMs));
   const dronesSorted = Object.entries(droneMap).filter(([n]) => n !== '—').sort((a,b) => b[1].flights - a[1].flights);
   document.getElementById('drone-strip').innerHTML = dronesSorted.map(([name, d]) => {
-    const isActive = name === 'Photon 400';
+    const savedStatus = localStorage.getItem('droneStatus_' + name);
+    const isActive = savedStatus !== null ? savedStatus === 'active' : name === 'Photon 400';
     const totalMins = d.durs.reduce((s,v)=>s+v,0);
     const avgDur = d.durs.length ? Math.round(totalMins/d.durs.length) : null;
     const totalDurStr = totalMins > 0 ? (totalMins >= 60 ? `${Math.floor(totalMins/60)}h ${totalMins%60}m` : `${totalMins}m`) : '—';
     const lastDate = new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
-    return `<div class="drone-card ${isActive?'active-drone':'inactive-drone'}">
-      <div>
+    const firstDate = d.firstMs !== Infinity ? new Date(d.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) : '—';
+    const safeId = name.replace(/[^a-zA-Z0-9]/g,'_');
+    return `<div class="drone-card ${isActive?'active-drone':'inactive-drone'}" id="dcard-${safeId}">
+      <div style="flex:1;min-width:0">
         <div class="dc-name">${name}</div>
         <div class="dc-stats" style="margin-top:3px"><span>${d.flights}</span> flights · avg <span>${avgDur !== null ? avgDur+'m' : '—'}</span></div>
-        <div class="dc-stats" style="margin-top:1px"><span>${totalDurStr}</span> total · <span>${lastDate}</span></div>
+        <div class="dc-stats" style="margin-top:1px"><span>${totalDurStr}</span> total · last <span>${lastDate}</span></div>
+        <div class="dc-stats" style="margin-top:1px">1st flight: <span>${firstDate}</span></div>
       </div>
-      <div style="margin-left:auto"><span class="dc-badge">${isActive?'● Active':'○ Inactive'}</span></div>
+      <div class="dc-status-wrap">
+        <span class="dc-badge">${isActive?'● Active':'○ Inactive'}</span>
+        <select class="dc-status-select" data-drone="${name}" data-id="${safeId}" onchange="droneStatusChange(this)">
+          <option value="active" ${isActive?'selected':''}>Active</option>
+          <option value="inactive" ${!isActive?'selected':''}>Inactive</option>
+        </select>
+      </div>
     </div>`;
   }).join('');
+  // Drone status modal
+  window._dsmPending = null;
+  window.droneStatusChange = function(sel) {
+    var name = sel.dataset.drone;
+    var safeId = sel.dataset.id;
+    var newVal = sel.value;
+    var oldVal = newVal === 'active' ? 'inactive' : 'active';
+    window._dsmPending = { name: name, safeId: safeId, sel: sel, newVal: newVal, oldVal: oldVal };
+    document.getElementById('dsm-title').textContent = name;
+    document.getElementById('dsm-sub').textContent = 'Set status to "' + (newVal === 'active' ? 'Active' : 'Inactive') + '"?';
+    document.getElementById('drone-status-modal').classList.add('show');
+  };
+  window.dsmConfirm = function() {
+    if (!window._dsmPending) return;
+    var p = window._dsmPending;
+    localStorage.setItem('droneStatus_' + p.name, p.newVal);
+    var card = document.getElementById('dcard-' + p.safeId);
+    if (card) {
+      card.classList.toggle('active-drone', p.newVal === 'active');
+      card.classList.toggle('inactive-drone', p.newVal !== 'active');
+      card.querySelector('.dc-badge').textContent = p.newVal === 'active' ? '● Active' : '○ Inactive';
+      var sel = card.querySelector('.dc-status-select');
+      if (sel) sel.className = 'dc-status-select';
+    }
+    document.getElementById('drone-status-modal').classList.remove('show');
+    window._dsmPending = null;
+  };
+  window.dsmCancel = function() {
+    if (!window._dsmPending) return;
+    window._dsmPending.sel.value = window._dsmPending.oldVal;
+    document.getElementById('drone-status-modal').classList.remove('show');
+    window._dsmPending = null;
+  };
 
   // Chart: Missions per day
   const dayMap = {};
@@ -2038,5 +2109,16 @@ setInterval(() => {
 
 loadData();
 </script>
+
+<div id="drone-status-modal">
+  <div class="dsm-card">
+    <div class="dsm-title" id="dsm-title">Change Status</div>
+    <div class="dsm-sub" id="dsm-sub">Save this status?</div>
+    <div class="dsm-btns">
+      <button class="dsm-yes" onclick="dsmConfirm()">Yes</button>
+      <button class="dsm-no" onclick="dsmCancel()">No</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
