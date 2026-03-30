@@ -206,6 +206,37 @@
 </head>
 <body>
 
+<div id="pin-overlay">
+  <div class="pin-card" id="pin-card">
+    <div class="pin-logo">
+      <img src="AR-New-LOGO.png" alt="Avilon Robotics" style="height:44px;background:#fff;border-radius:6px;padding:4px;">
+    </div>
+    <div class="pin-title">Drone Mission Dashboard</div>
+    <div class="pin-sub">Enter PIN to continue</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-btn" onclick="pinPress('1')">1</button>
+      <button class="pin-btn" onclick="pinPress('2')">2</button>
+      <button class="pin-btn" onclick="pinPress('3')">3</button>
+      <button class="pin-btn" onclick="pinPress('4')">4</button>
+      <button class="pin-btn" onclick="pinPress('5')">5</button>
+      <button class="pin-btn" onclick="pinPress('6')">6</button>
+      <button class="pin-btn" onclick="pinPress('7')">7</button>
+      <button class="pin-btn" onclick="pinPress('8')">8</button>
+      <button class="pin-btn" onclick="pinPress('9')">9</button>
+      <button class="pin-btn clear" onclick="pinClear()">CLR</button>
+      <button class="pin-btn" onclick="pinPress('0')">0</button>
+      <button class="pin-btn clear" onclick="pinBack()">&#9003;</button>
+    </div>
+    <div id="pin-error">Incorrect PIN</div>
+  </div>
+</div>
+
 <header>
   <img src="AR-New-LOGO.png" alt="Avilon Robotics" style="height:40px;width:auto;flex-shrink:0;">
   <div>
