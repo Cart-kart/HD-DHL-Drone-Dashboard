@@ -163,6 +163,45 @@
     .cal-day .cal-count { font-size: 0.9rem; }
     #batt-history-panel, #aisle-history-panel { height: 180px; }
   }
+
+  /* PIN Overlay */
+  #pin-overlay {
+    position: fixed; inset: 0; background: #0f172a; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #pin-overlay.hidden { display: none; }
+  .pin-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+    padding: 36px 40px; text-align: center; width: 320px;
+  }
+  .pin-card .pin-logo { margin-bottom: 16px; }
+  .pin-card .pin-title { font-size: 1rem; font-weight: 700; color: #f8fafc; margin-bottom: 4px; }
+  .pin-card .pin-sub { font-size: 0.72rem; color: #64748b; margin-bottom: 24px; }
+  .pin-dots { display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; }
+  .pin-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #334155; border: 2px solid #475569;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pin-dot.filled { background: #3b82f6; border-color: #3b82f6; }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pin-btn {
+    background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+    font-size: 1.2rem; font-weight: 600; border-radius: 10px;
+    padding: 14px; cursor: pointer; transition: background 0.1s;
+  }
+  .pin-btn:hover { background: #334155; }
+  .pin-btn:active { background: #475569; }
+  .pin-btn.clear { font-size: 0.8rem; color: #64748b; }
+  #pin-error {
+    font-size: 0.72rem; color: #f87171; margin-top: 14px;
+    min-height: 1em; opacity: 0; transition: opacity 0.2s;
+  }
+  #pin-error.show { opacity: 1; }
+  @keyframes pin-shake {
+    0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)}
+  }
+  .pin-card.shake { animation: pin-shake 0.4s ease; }
 </style>
 </head>
 <body>
@@ -1914,6 +1953,57 @@ setInterval(() => {
     el.textContent = `${m}:${String(s).padStart(2, '0')}`;
   });
 }, 1000);
+
+
+// PIN Gate
+(function() {
+  const PIN = '5325';
+  const overlay = document.getElementById('pin-overlay');
+  if (sessionStorage.getItem('pin_ok') === '1') { overlay.classList.add('hidden'); return; }
+  let entered = '';
+  window.pinPress = function(d) {
+    if (entered.length >= 4) return;
+    entered += d;
+    updateDots();
+    if (entered.length === 4) checkPin();
+  };
+  window.pinBack = function() {
+    entered = entered.slice(0, -1);
+    updateDots();
+    clearError();
+  };
+  window.pinClear = function() {
+    entered = '';
+    updateDots();
+    clearError();
+  };
+  function updateDots() {
+    for (let i = 0; i < 4; i++)
+      document.getElementById('d' + i).classList.toggle('filled', i < entered.length);
+  }
+  function clearError() {
+    document.getElementById('pin-error').classList.remove('show');
+  }
+  function checkPin() {
+    if (entered === PIN) {
+      sessionStorage.setItem('pin_ok', '1');
+      overlay.classList.add('hidden');
+    } else {
+      const card = document.getElementById('pin-card');
+      card.classList.add('shake');
+      card.addEventListener('animationend', () => card.classList.remove('shake'), { once: true });
+      document.getElementById('pin-error').classList.add('show');
+      entered = '';
+      updateDots();
+    }
+  }
+  document.addEventListener('keydown', function(e) {
+    if (overlay.classList.contains('hidden')) return;
+    if (e.key >= '0' && e.key <= '9') pinPress(e.key);
+    else if (e.key === 'Backspace') pinBack();
+    else if (e.key === 'Escape') pinClear();
+  });
+})();
 
 loadData();
 </script>
