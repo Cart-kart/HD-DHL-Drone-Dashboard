@@ -128,6 +128,9 @@
   #aisleOverviewTable tbody tr { cursor: pointer; transition: filter 0.1s; }
   #aisleOverviewTable tbody tr:hover td { filter: brightness(1.3); }
   #aisleOverviewTable tbody tr.selected td { outline: 1px solid #60a5fa; }
+  #aisleOverviewTable tbody tr.jump-highlight td { background: rgba(96,165,250,0.18) !important; transition: background 0.8s; }
+  .aisle-link { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+  .aisle-link:hover { opacity: 0.75; }
   .heat-bar { display: inline-block; height: 8px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
   /* Aisle history panel */
   #aisle-history-panel { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; height: 340px; overflow-y: auto; display: flex; flex-direction: column; }
@@ -1512,7 +1515,7 @@ function renderMissionPage(page) {
       <td>${m.date}${m.armTime && m.armTime !== '—' ? `<br><span style="color:#64748b;font-size:0.72rem">${fmtTime(m.armTime)}</span>` : ''}</td>
       <td>${m.person.replace(' DHL','')}</td>
       <td>${m.rcOp.replace(' DHL','')}</td>
-      <td>${m.aisle}</td>
+      <td><span class="aisle-link" onclick="event.stopPropagation();jumpToAisle('${(m.aisle||'').replace(/'/g,"\\'")}')">${m.aisle}</span></td>
       <td>${m.drone}</td>
       <td>${m.logId}</td>
       <td>${fmtTime(m.armTime)}</td>
@@ -1938,6 +1941,19 @@ function toggleAisleNameSort() {
   renderAisleOverview('name');
 }
 
+function jumpToAisle(aisleId) {
+  // Scroll to aisle overview section
+  const overviewEl = document.getElementById('aisleOverviewTable');
+  if (overviewEl) overviewEl.closest('.aisle-overview-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Find the matching row and trigger renderAisleHistory
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#aisleOverviewBody tr');
+    let targetRow = null;
+    rows.forEach(r => { if (r.cells[1] && r.cells[1].textContent.trim() === aisleId) targetRow = r; });
+    if (targetRow) { targetRow.click(); targetRow.classList.add('jump-highlight'); setTimeout(() => targetRow.classList.remove('jump-highlight'), 1200); }
+    else renderAisleHistory(aisleId, null);
+  }, 400);
+}
 function renderAisleOverview(dir) {
   const aisleMap = window._lastAisleMap || {};
   const aisleLastFlight = window._lastAisleLastFlight || {};
