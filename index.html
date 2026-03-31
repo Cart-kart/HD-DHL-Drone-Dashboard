@@ -125,6 +125,19 @@
   #aisle-history-panel { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; height: 340px; overflow-y: auto; display: flex; flex-direction: column; }
   #aisle-history-panel .bh-empty { color: #475569; font-size: 0.78rem; font-style: italic; margin: auto; text-align: center; }
   #aisle-history-panel .bh-title { font-size: 0.72rem; color: #60a5fa; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; flex-shrink: 0; }
+  /* Aisle description box */
+  .aisle-desc-wrap { flex-shrink: 0; margin-bottom: 10px; }
+  .aisle-desc-box {
+    width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    color: #cbd5e1; font-size: 0.75rem; font-family: inherit; padding: 7px 10px;
+    resize: none; outline: none; line-height: 1.5; min-height: 54px;
+    transition: border-color 0.15s;
+  }
+  .aisle-desc-box:focus { border-color: #60a5fa; }
+  .aisle-desc-box::placeholder { color: #475569; font-style: italic; }
+  .aisle-desc-saved { font-size: 0.65rem; color: #4ade80; margin-top: 3px; opacity: 0; transition: opacity 0.3s; }
+  .aisle-desc-saved.show { opacity: 1; }
+
   /* Battery chart hint */
   .chart-hint { font-size: 0.67rem; color: #475569; font-style: italic; margin-bottom: 8px; margin-top: -6px; }
   /* Historical data toggle */
@@ -286,7 +299,7 @@
   <div>
     <div style="font-size:0.65rem;color:#3b82f6;font-weight:600;letter-spacing:0.1em;">AVILON ROBOTICS</div>
     <h1>Drone Mission Dashboard<span id="histBadge">📊 Total Site Flights — Jun 2025 to now</span></h1>
-    <div style="font-size:0.6rem;color:#475569;margin-top:2px;letter-spacing:0.05em;">V.0.7</div>
+    <div style="font-size:0.6rem;color:#475569;margin-top:2px;letter-spacing:0.05em;">V.0.7.0</div>
   </div>
   <span id="data-source" style="font-size:0.7rem;color:#64748b;">connecting...</span>
   <span id="auto-refresh-indicator" style="font-size:0.7rem;color:#64748b;">next refresh in <strong id="countdown">1:00</strong></span>
@@ -996,7 +1009,7 @@ function renderDashboard(missions, batteryMap) {
         <div class="dc-name">${name}</div>
         <div class="dc-stats" style="margin-top:3px"><span>${d.flights}</span> flights · avg <span>${avgDur !== null ? avgDur+'m' : '—'}</span></div>
         <div class="dc-stats" style="margin-top:1px"><span>${totalDurStr}</span> total · last <span>${lastDate}</span></div>
-        <div class="dc-stats" style="margin-top:1px">1st flight: <span>${firstDate}</span></div>
+        <div class="dc-stats" style="margin-top:1px">First flight: <span>${firstDate}</span></div>
       </div>
       <div class="dc-status-wrap">
         <select class="dc-status-select" data-drone="${name}" data-id="${safeId}" onchange="droneStatusChange(this)">
@@ -1569,8 +1582,24 @@ function renderFlightsPanel(dateStr) {
   const done = confirmed + assumed;
   const failed = todayMissions.filter(m => m.hasResult && m.completed.includes('ไม่เสร็จ')).length;
   const inFlight = todayMissions.filter(m => isFlying(m)).length;
+  const flyingMission = todayMissions.find(m => isFlying(m));
+  const lastDone = [...todayMissions].reverse().find(m => !isFlying(m));
+  const firstFlightTime = todayMissions.length > 0 ? fmtTime(todayMissions[0].armTime) : '—';
+  const totalMinutes = todayMissions.reduce((acc, m) => {
+    if (m.duration !== null) return acc + m.duration;
+    const med = ((window._aisleMedian || {})[m.aisle]) ? Math.round((window._aisleMedian || {})[m.aisle]) : (window._globalFallback ? Math.round(window._globalFallback) : 0);
+    if (!m.hasResult && !isFlying(m) && med) return acc + med;
+    return acc;
+  }, 0);
+  const totalTimeStr = totalMinutes > 0 ? (totalMinutes >= 60 ? `${Math.floor(totalMinutes/60)}h ${totalMinutes%60}m` : `${totalMinutes}m`) : '—';
+  const flyingAisleMed = flyingMission ? (() => { const v = (window._aisleMedian || {})[flyingMission.aisle]; return v ? Math.round(v) : (window._globalFallback ? Math.round(window._globalFallback) : null); })() : null;
+  const inFlightHeader = flyingMission ? `<div style="font-size:0.72rem;color:#34d399;margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="animation:flypulse 1.4s infinite">✈</span><span>${flyingMission.drone}</span><span style="color:#475569">→</span><span>${flyingMission.aisle}</span>${flyingAisleMed ? `<span style="color:#64748b">· est. ~${flyingAisleMed}m</span>` : ''}</div>` : '';
+  const lastDoneInfo = lastDone ? (() => {
+    const dur = lastDone.duration !== null ? formatDuration(lastDone.duration) : '—';
+    return `<div onclick="goToFlightLog('${lastDone.ts}')" style="cursor:pointer;font-size:0.72rem;color:#64748b;padding:6px 10px;background:#0f172a;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;gap:8px;border:1px solid #334155;" title="Go to flight record"><span style="color:#475569;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;flex-shrink:0">Last flight</span><span style="color:#94a3b8">${lastDone.aisle}</span><span style="color:#334155">·</span><span style="color:#94a3b8">${lastDone.drone}</span><span style="color:#334155">·</span><span style="color:#60a5fa">${dur}</span><span style="color:#334155">·</span><span style="color:#64748b">${fmtTime(lastDone.armTime)}</span><span style="margin-left:auto;color:#475569">›</span></div>`;
+  })() : '';
 
-  const rows = [...todayMissions].reverse().map(m => {
+  const rows =[...todayMissions].reverse().map(m => {
     const ok = m.completed.includes('เสร็จสิ้น') && !m.completed.includes('ไม่เสร็จ');
     const flying = isFlying(m);
     const assumedDone = !m.hasResult && !flying;
@@ -1616,7 +1645,29 @@ function renderFlightsPanel(dateStr) {
   }).join('');
 
   const assumedNote = assumed > 0 ? `<div style="font-size:0.68rem;color:#64748b;margin-top:8px">* Done* = no form submitted — assumed complete (${assumed} flight${assumed>1?'s':''})</div>` : '';
-  panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">${isToday ? "Daily Flight Log" : label}</div>${isToday ? `<div class="today-date">${label}</div>` : ''}</div><div class="today-stats"><div class="today-stat"><div class="ts-val" style="color:#60a5fa">${todayMissions.length}</div><div class="ts-lbl">Flights</div></div><div class="today-stat"><div class="ts-val" style="color:#4ade80">${done}</div><div class="ts-lbl">Completed</div></div><div class="today-stat"><div class="ts-val" style="color:#f87171">${failed}</div><div class="ts-lbl">Aborted</div></div>${inFlight > 0 ? `<div class="today-stat"><div class="ts-val" style="color:#34d399;font-size:1rem;letter-spacing:0.05em">IN FLIGHT</div><div class="ts-lbl">Now</div></div>` : ''}</div><div class="table-wrap"><table><thead><tr><th>Time</th><th>RC Pilot</th><th>Drone</th><th>Aisle</th><th>Battery</th><th>Landing</th><th>Duration</th><th>Log ID</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>${assumedNote}</div>`;}
+  panel.innerHTML = `<div class="today-panel">
+    <div class="today-header">
+      <div class="today-dot"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="today-title">${isToday ? 'Daily Flight Log' : label}</div>
+          ${isToday ? `<div class="today-date">${label}</div>` : ''}
+        </div>
+        ${inFlightHeader}
+      </div>
+    </div>
+    <div class="today-stats">
+      <div class="today-stat"><div class="ts-val" style="color:#60a5fa">${todayMissions.length}</div><div class="ts-lbl">Flights</div></div>
+      <div class="today-stat"><div class="ts-val" style="color:#4ade80">${done}</div><div class="ts-lbl">Completed</div></div>
+      <div class="today-stat"><div class="ts-val" style="color:#f87171">${failed}</div><div class="ts-lbl">Aborted</div></div>
+      <div class="today-stat"><div class="ts-val" style="color:#e2e8f0;font-size:1.1rem">${firstFlightTime}</div><div class="ts-lbl">First Flight</div></div>
+      <div class="today-stat"><div class="ts-val" style="color:#fbbf24;font-size:1.1rem">${totalTimeStr}</div><div class="ts-lbl">Total Time</div></div>
+      ${inFlight > 0 ? `<div class="today-stat"><div class="ts-val" style="color:#34d399;font-size:1rem;letter-spacing:0.05em">IN FLIGHT</div><div class="ts-lbl">Now</div></div>` : ''}
+    </div>
+    ${lastDoneInfo}
+    <div class="table-wrap"><table><thead><tr><th>Time</th><th>RC Pilot</th><th>Drone</th><th>Aisle</th><th>Battery</th><th>Landing</th><th>Duration</th><th>Log ID</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${assumedNote}
+  </div>`;}
 
 
 
@@ -1905,8 +1956,16 @@ function renderAisleHistory(aisleId, rowEl) {
       if (da - db2 !== 0) return db2 - da;
       return armMins(b.armTime) - armMins(a.armTime);
     });
+  const descKey = 'aisleDesc_' + aisleId;
+  const savedDesc = localStorage.getItem(descKey) || '';
+  const descBox = `<div class="aisle-desc-wrap">
+    <textarea class="aisle-desc-box" id="aisle-desc-input" placeholder="Add a description for ${aisleId}..." rows="2">${savedDesc}</textarea>
+    <div class="aisle-desc-saved" id="aisle-desc-saved">Saved</div>
+  </div>`;
+
   if (!flights.length) {
-    panel.innerHTML = '<div class="bh-empty">No flights recorded for ' + aisleId + '</div>';
+    panel.innerHTML = descBox + '<div class="bh-empty">No flights recorded for ' + aisleId + '</div>';
+    _bindAisleDesc(aisleId);
     return;
   }
   const rows = flights.map((m, i) => {
@@ -1928,7 +1987,24 @@ function renderAisleHistory(aisleId, rowEl) {
       + '<span style="flex:1;font-size:0.72rem;color:#94a3b8">#' + m.batt + ' · ' + m.person.replace(' DHL','') + '</span>'
       + '<span style="flex-shrink:0">' + status + '</span></div>';
   }).join('');
-  panel.innerHTML = '<div class="bh-title">' + aisleId + ' — ' + flights.length + ' flights</div>' + rows;
+  panel.innerHTML = descBox + '<div class="bh-title">' + aisleId + ' — ' + flights.length + ' flights</div>' + rows;
+  _bindAisleDesc(aisleId);
+}
+
+function _bindAisleDesc(aisleId) {
+  const input = document.getElementById('aisle-desc-input');
+  const saved = document.getElementById('aisle-desc-saved');
+  if (!input) return;
+  let _saveTimer;
+  input.addEventListener('input', function() {
+    clearTimeout(_saveTimer);
+    saved.classList.remove('show');
+    _saveTimer = setTimeout(function() {
+      localStorage.setItem('aisleDesc_' + aisleId, input.value);
+      saved.classList.add('show');
+      setTimeout(function() { saved.classList.remove('show'); }, 1500);
+    }, 600);
+  });
 }
 
 function goToFlightLog(ts) {
