@@ -82,6 +82,14 @@
   .badge.flying { background: #1c3a2a; color: #34d399; border: 1px solid #34d399; animation: flypulse 1.4s infinite; }
   .badge.assumed { background: #1a2e1a; color: #86efac; border: 1px dashed #4ade80; }
   @keyframes flypulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+  /* Real-Time Flight Status card */
+  .rt-status-card { border-radius: 8px; padding: 8px 16px; text-align: center; min-width: 130px; flex-shrink: 0; }
+  .rt-status-card.rt-inflight { background: #0d2218; border: 1.5px solid #34d399; box-shadow: 0 0 12px #34d39922; }
+  .rt-status-card.rt-noflight { background: #151e2d; border: 1px solid #334155; }
+  .rt-status-card .rt-label { font-size: 0.6rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px; }
+  .rt-status-card .rt-value { font-size: 0.88rem; font-weight: 700; }
+  .rt-status-card.rt-inflight .rt-value { color: #34d399; animation: flypulse 1.4s infinite; }
+  .rt-status-card.rt-noflight .rt-value { color: #475569; }
   /* Drone status strip */
   .drone-card { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:12px; min-width:180px; max-width:260px; flex:0 1 auto; }
   .drone-card.active-drone { border-color:#34d399; background:#0d1f1a; }
@@ -323,7 +331,7 @@
   <div class="charts-grid">
     <div class="chart-card" id="cal-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <h3 style="margin:0">Flight Log Calendar</h3>
+        <h3 style="margin:0">📅 Flight Log Calendar</h3>
         <div style="display:flex;align-items:center;gap:8px;">
           <button id="cal-prev" onclick="calNav(-1)" style="background:#334155;border:none;color:#e2e8f0;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.85rem;">‹</button>
           <span id="cal-label" style="font-size:0.78rem;color:#e2e8f0;min-width:90px;text-align:center;font-weight:600;"></span>
@@ -334,7 +342,7 @@
       <div id="cal-grid"></div>
     </div>
     <div class="chart-card" style="overflow:hidden">
-      <h3>Aisle Flight Time</h3>
+      <h3>📊 Aisle Flight Time</h3>
       <div class="table-wrap">
         <table style="font-size:0.72rem;width:100%;border-collapse:collapse">
           <thead>
@@ -356,7 +364,7 @@
   <div class="aisle-overview-grid">
     <div class="table-card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <h3 style="margin:0">Aisle Overview</h3>
+        <h3 style="margin:0">🗺️ Aisle Overview</h3>
         <select id="aisle-year" onchange="onAisleYearChange(this.value)" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:0.72rem;cursor:pointer;">
           <option value="total">Total</option>
           <option value="2026">2026</option>
@@ -377,15 +385,15 @@
       </div>
     </div>
     <div class="table-card">
-      <h3>Aisle History <span id="aisle-history-title" style="color:#60a5fa;font-weight:700"></span></h3>
+      <h3>📋 Aisle History <span id="aisle-history-title" style="color:#60a5fa;font-weight:700"></span></h3>
       <div id="aisle-history-panel"><div class="bh-empty">Click an aisle name to see flight history</div></div>
     </div>
   </div>
-  <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#3b82f6;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Battery Analytics</div>
+  <div style="margin-bottom:8px;margin-top:4px;font-size:0.7rem;color:#3b82f6;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">🔋 Battery Analytics</div>
   <div id="battRemark" style="margin-bottom:12px;font-size:0.72rem;color:#64748b;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 14px;"></div>
   <div class="charts-grid" style="margin-bottom:14px">
     <div class="chart-card">
-      <h3>Battery Log</h3>
+      <h3>🔋 Battery Log</h3>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
         <span style="font-size:0.68rem;color:#475569;">Sort:</span>
         <button class="batt-sort-btn active-sort" data-sort="lastuse" onclick="setBattSort('lastuse')">By Last Use</button>
@@ -396,12 +404,12 @@
       <div class="chart-wrap"><canvas id="chartBattUse"></canvas></div>
     </div>
     <div class="chart-card">
-      <h3>Battery History <span id="batt-history-title" style="color:#f59e0b;font-weight:700"></span></h3>
+      <h3>📈 Battery History <span id="batt-history-title" style="color:#f59e0b;font-weight:700"></span></h3>
       <div id="batt-history-panel"><div class="bh-empty">Click a battery bar or row to see flight history</div></div>
     </div>
   </div>
   <div class="table-card" style="margin-bottom:14px">
-    <h3>Battery Health Summary</h3>
+    <h3>🩺 Battery Health Summary</h3>
     <div style="margin-bottom:8px;">
       <button id="battInactiveToggle" onclick="toggleInactiveBatt()" style="background:#0f172a;color:#94a3b8;border:1px solid #334155;border-radius:5px;padding:4px 12px;font-size:0.78rem;cursor:pointer;">▶ Show Inactive</button>
     </div>
@@ -973,12 +981,12 @@ function renderDashboard(missions, batteryMap) {
   })();
 
   document.getElementById('stats').innerHTML = `
-    <div class="card blue"><div class="label">Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm${_viewMode==='2025'?`<br><div class="event-badge">🏆 Annual Stock Count<br>+${ANNUAL_TOTAL} flights · 1–2 Oct 2025</div>`:''}</div></div>
-    <div class="card green"><div class="label">Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span>${_viewMode==='2025'?`<br><div class="event-badge">🏆 Annual Stock Count<br>${ANNUAL_COMPLETED} flights · 100% · 1–2 Oct 2025</div>`:''}</div></div>
-    <div class="card red"><div class="label">Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
-    <div class="card yellow"><div class="label">Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
-    <div class="card"><div class="label">Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
-    <div class="card blue"><div class="label">Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} confirmed · ${missions.filter(m => m.duration === null && _aisleMedian[m.aisle]).length} est. from aisle avg (2025+2026)</div></div>
+    <div class="card blue"><div class="label">✈️ Total Take-offs</div><div class="value">${grandTotal}</div><div class="sub">${withResult.length} with disarm record · ${assumed} no disarm${_viewMode==='2025'?`<br><div class="event-badge">🏆 Annual Stock Count<br>+${ANNUAL_TOTAL} flights · 1–2 Oct 2025</div>`:''}</div></div>
+    <div class="card green"><div class="label">✅ Completed</div><div class="value">${grandCompleted}</div><div class="sub">${grandRate}% of total · <span style="font-size:0.68rem;color:#94a3b8">${confirmed} confirmed + ${assumed} assumed*</span>${_viewMode==='2025'?`<br><div class="event-badge">🏆 Annual Stock Count<br>${ANNUAL_COMPLETED} flights · 100% · 1–2 Oct 2025</div>`:''}</div></div>
+    <div class="card red"><div class="label">❌ Aborted</div><div class="value">${failed}</div><div class="sub">early landings</div></div>
+    <div class="card yellow"><div class="label">👤 Operators</div><div class="value">${operators.length}</div><div class="sub">${operators.map(o => RESIGNED.includes(o) ? `<span style="color:#fbbf24" title="Resigned">${o}*</span>` : o).join(', ')}</div></div>
+    <div class="card"><div class="label">⏱️ Avg Duration</div><div class="value">${isNaN(avgDuration) ? '—' : Math.round(avgDuration)}<span style="font-size:1rem;color:#94a3b8"> min</span></div><div class="sub">per mission</div></div>
+    <div class="card blue"><div class="label">🕐 Total Flight Time</div><div class="value">${totalFlightStr}</div><div class="sub">${missions.filter(m => m.duration !== null).length} confirmed · ${missions.filter(m => m.duration === null && _aisleMedian[m.aisle]).length} est. from aisle avg (2025+2026)</div></div>
   `;
 
   // Drone status strip
@@ -1575,7 +1583,7 @@ function renderFlightsPanel(dateStr) {
       return new Date(by,bm-1,bd) - new Date(ay,am-1,ad);
     });
     if (dates.length) { renderFlightsPanel(dates[0]); return; }
-    panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div class="today-title">Daily Flight Log</div><div class="today-date">${label}</div></div><div class="today-empty">No flights recorded today yet.</div></div>`;
+    panel.innerHTML = `<div class="today-panel"><div class="today-header"><div class="today-dot"></div><div style="flex:1"><div class="today-title">📋 Daily Flight Log</div><div class="today-date">${label}</div></div><div class="rt-status-card rt-noflight"><div class="rt-label">Real-Time Flight</div><div class="rt-value">⊙ No Flight</div></div></div><div class="today-empty">No flights recorded today yet.</div></div>`;
     return;
   }
 
@@ -1657,14 +1665,16 @@ function renderFlightsPanel(dateStr) {
   }).join('');
 
   const assumedNote = assumed > 0 ? `<div style="font-size:0.68rem;color:#64748b;margin-top:8px">* Done* = no form submitted — assumed complete (${assumed} flight${assumed>1?'s':''})</div>` : '';
-  const inFlightStat = flyingMission
-    ? `<div class="today-stat">
-        <div class="ts-val" style="color:#34d399;font-size:0.95rem;letter-spacing:0.03em;animation:flypulse 1.4s infinite">✈ In Flight</div>
-        <div class="ts-lbl" style="color:#34d399;opacity:0.8;margin-top:4px;font-size:0.68rem;text-transform:none;letter-spacing:0">${flyingMission.aisle}${flyingAisleMed ? ' · ~' + flyingAisleMed + 'm' : ''}</div>
+  const inFlightStat = ''; // moved to header card
+  const rtStatusCard = flyingMission
+    ? `<div class="rt-status-card rt-inflight">
+        <div class="rt-label">Real-Time Flight</div>
+        <div class="rt-value">✈ In Flight</div>
+        ${flyingMission.aisle ? `<div style="font-size:0.65rem;color:#34d399;opacity:0.8;margin-top:3px">${flyingMission.aisle}${flyingAisleMed ? ' · ~'+flyingAisleMed+'m' : ''}</div>` : ''}
       </div>`
-    : `<div class="today-stat" style="opacity:0.45">
-        <div class="ts-val" style="color:#fbbf24;font-size:0.95rem">No Flight</div>
-        <div class="ts-lbl">Status</div>
+    : `<div class="rt-status-card rt-noflight">
+        <div class="rt-label">Real-Time Flight</div>
+        <div class="rt-value">⊙ No Flight</div>
       </div>`;
 
   panel.innerHTML = `<div class="today-panel">
@@ -1672,10 +1682,11 @@ function renderFlightsPanel(dateStr) {
       <div class="today-dot"></div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div class="today-title">${isToday ? 'Daily Flight Log' : label}</div>
+          <div class="today-title">${isToday ? '📋 Daily Flight Log' : label}</div>
           ${isToday ? `<div class="today-date">${label}</div>` : ''}
         </div>
       </div>
+      ${isToday ? rtStatusCard : ''}
     </div>
     <div class="today-stats">
       <div class="today-stat"><div class="ts-val" style="color:#60a5fa">${todayMissions.length}</div><div class="ts-lbl">Flights</div></div>
