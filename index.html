@@ -1321,8 +1321,8 @@ function renderDashboard(missions, batteryMap) {
   document.getElementById('dashboard').style.display = 'block';
 }
 
-function copyFailsafe(btn, drone, logId, date, landingTime) {
-  const text = `Drone: ${drone}\nLog ID: ${logId}\nFailsafe time: ${date} ${landingTime}\nAIBOX: AIBOX1`;
+function copyFailsafe(btn, drone, aisle, logId, date, landingTime) {
+  const text = `[Failsafe Report]\nDrone  : ${drone}\nAisle  : ${aisle}\nLog ID : ${logId}\nDate   : ${date}  Time: ${landingTime}\nAIBOX  : AIBOX1`;
   navigator.clipboard.writeText(text).then(() => {
     btn.textContent = '✓';
     btn.style.color = '#4ade80';
@@ -1471,7 +1471,7 @@ function renderMissionPage(page) {
         durCell = aisleMed ? `<span style="color:#64748b" title="${estTip}">~${aisleMed}m<span style="font-size:0.65rem;color:#475569"> est.</span></span>` : '—';
       }
     } else {
-      const _copyBtn = !ok ? ` <button onclick="copyFailsafe(this,'${(m.drone||'—').replace(/'/g,"\\'")}','${m.logId}','${m.date}','${m.disarmTime}')" title="Copy failsafe info for dev" style="background:none;border:none;cursor:pointer;font-size:0.95rem;padding:0 2px;vertical-align:middle;line-height:1">📄</button>` : '';
+      const _copyBtn = !ok ? ` <button onclick="copyFailsafe(this,'${(m.drone||'—').replace(/'/g,"\\'")}','${(m.aisle||'—').replace(/'/g,"\\'")}','${m.logId}','${m.date}','${m.disarmTime}')" title="Copy failsafe info for dev" style="background:none;border:none;cursor:pointer;font-size:0.95rem;padding:0 2px;vertical-align:middle;line-height:1">📄</button>` : '';
       statusCell = `<span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'Done' : 'Fail'}</span>${_copyBtn}`;
       noteCell = `<span style="color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${m.reason}">${m.reason || ''}</span>`;
       disarmCell = fmtDisarm(m.armTime, m.disarmTime);
@@ -1626,7 +1626,7 @@ function renderFlightsPanel(dateStr) {
     const bv = m.landingV && m.landingV > 6;
     const pct = bv ? pctFull(m.landingV) : 0;
     const col = pct >= 80 ? '#4ade80' : pct >= 60 ? '#fbbf24' : '#f87171';
-    const _dailyCopyBtn = (!flying && !assumedDone && !ok) ? ` <button onclick="event.stopPropagation();copyFailsafe(this,'${(m.drone||'—').replace(/'/g,"\\'")}','${m.logId}','${m.date}','${m.disarmTime}')" title="Copy failsafe info for dev" style="background:none;border:none;cursor:pointer;font-size:0.95rem;padding:0 2px;vertical-align:middle;line-height:1">📄</button>` : '';
+    const _dailyCopyBtn = (!flying && !assumedDone && !ok) ? ` <button onclick="event.stopPropagation();copyFailsafe(this,'${(m.drone||'—').replace(/'/g,"\\'")}','${(m.aisle||'—').replace(/'/g,"\\'")}','${m.logId}','${m.date}','${m.disarmTime}')" title="Copy failsafe info for dev" style="background:none;border:none;cursor:pointer;font-size:0.95rem;padding:0 2px;vertical-align:middle;line-height:1">📄</button>` : '';
     const badge = flying
       ? `<span class="badge flying">During Flight</span>`
       : assumedDone
