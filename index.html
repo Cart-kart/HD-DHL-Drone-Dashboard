@@ -517,7 +517,8 @@ window.setBattSort = function(mode) {
   });
   var counts = sorted.map(function(b){ return bm[b].uses; });
   var colors = sorted.map(function(b){
-    return DEAD.includes(b) ? '#ef4444cc' : CFG_ACTIVE_BATTERIES.includes(b) ? '#4ade80cc' : '#f59e0bcc';
+    var battActive = localStorage.getItem('battStatus_'+b) !== null ? localStorage.getItem('battStatus_'+b) === 'active' : CFG_ACTIVE_BATTERIES.includes(b);
+    return DEAD.includes(b) ? '#ef4444cc' : battActive ? '#4ade80cc' : '#f59e0bcc';
   });
   var labels = sorted.map(function(b){ return '🔋 #'+b; });
   if (charts && charts['chartBattUse']) {
@@ -1011,7 +1012,8 @@ function renderDashboard(missions, batteryMap) {
   const latestMs = Math.max(...Object.values(droneMap).map(d => d.lastMs));
   const dronesSorted = Object.entries(droneMap).filter(([n]) => n !== '—').sort((a,b) => a[0].localeCompare(b[0]));
   document.getElementById('drone-strip').innerHTML = dronesSorted.map(([name, d]) => {
-    const isActive = CFG_ACTIVE_DRONES.includes(name);
+    const savedStatus = localStorage.getItem('droneStatus_' + name);
+    const isActive = savedStatus !== null ? savedStatus === 'active' : CFG_ACTIVE_DRONES.includes(name);
     const totalMins = d.durs.reduce((s,v)=>s+v,0);
     const avgDur = d.durs.length ? Math.round(totalMins/d.durs.length) : null;
     const totalDurStr = totalMins > 0 ? (totalMins >= 60 ? `${Math.floor(totalMins/60)}h ${totalMins%60}m` : `${totalMins}m`) : '—';
@@ -1051,12 +1053,10 @@ function renderDashboard(missions, batteryMap) {
     if (!window._dsmPending) return;
     var p = window._dsmPending;
     if (p.type === 'batt') {
-      if (p.newVal === 'active') { if (!CFG_ACTIVE_BATTERIES.includes(p.batt)) CFG_ACTIVE_BATTERIES.push(p.batt); }
-      else { CFG_ACTIVE_BATTERIES = CFG_ACTIVE_BATTERIES.filter(function(b){ return b !== p.batt; }); }
+      localStorage.setItem('battStatus_' + p.batt, p.newVal);
       if (window.renderBattTable) window.renderBattTable();
     } else {
-      if (p.newVal === 'active') { if (!CFG_ACTIVE_DRONES.includes(p.name)) CFG_ACTIVE_DRONES.push(p.name); }
-      else { CFG_ACTIVE_DRONES = CFG_ACTIVE_DRONES.filter(function(n){ return n !== p.name; }); }
+      localStorage.setItem('droneStatus_' + p.name, p.newVal);
       var card = document.getElementById('dcard-' + p.safeId);
       if (card) {
         card.classList.toggle('active-drone', p.newVal === 'active');
@@ -1217,7 +1217,8 @@ function renderDashboard(missions, batteryMap) {
   const _defaultActive = ['03', '06', '71'];
   function isBattActive(b) {
     if (DEAD_BATTERIES.includes(b)) return false;
-    return CFG_ACTIVE_BATTERIES.includes(b);
+    var saved = localStorage.getItem('battStatus_' + b);
+    return saved !== null ? saved === 'active' : CFG_ACTIVE_BATTERIES.includes(b);
   }
   const ACTIVE_BATTERIES = Object.keys(batteryMap).filter(b => b && b !== '—' && b !== '?' && isBattActive(b));
   // Apply localStorage overrides for non-dead batteries
@@ -1349,7 +1350,8 @@ window.renderBattTable = function() {
   var BATTERY_EMOJI = {};
   function isBattActive(b) {
     if (DEAD_BATTERIES.includes(b)) return false;
-    return CFG_ACTIVE_BATTERIES.includes(b);
+    var saved = localStorage.getItem('battStatus_' + b);
+    return saved !== null ? saved === 'active' : CFG_ACTIVE_BATTERIES.includes(b);
   }
   var DEAD = ['72'];
   var battIds = Object.keys(batteryMap).filter(function(b){ return b && b !== '—' && b !== '?'; }).sort(function(a,b){
