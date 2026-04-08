@@ -236,6 +236,40 @@
   }
   .drone-card.active-drone .dc-status-select { color: #34d399; border-color: #34d399; }
   .drone-card.inactive-drone .dc-status-select { color: #475569; }
+  /* Drone Deployment Timeline */
+  .tl-wrap { position: relative; padding-left: 110px; }
+  .tl-axis { position: relative; height: 18px; margin-bottom: 4px; }
+  .tl-month-label { position: absolute; font-size: 0.58rem; color: #475569; transform: translateX(-50%); white-space: nowrap; }
+  .tl-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; border-left: 1px dashed #334155; pointer-events: none; }
+  .tl-today-line { position: absolute; top: -4px; bottom: -4px; width: 1px; background: #fbbf24; z-index: 1; box-shadow: 0 0 6px #fbbf2466; }
+  .tl-row { position: relative; height: 38px; margin-bottom: 16px; }
+  .tl-drone-label { position: absolute; left: -110px; width: 104px; font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-align: right; top: 50%; transform: translateY(-50%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-drone-label.tl-active { color: #34d399; }
+  .tl-track { position: absolute; top: 50%; transform: translateY(-50%); height: 5px; background: #1e3a2f22; border-radius: 3px; width: 100%; }
+  .tl-bar { position: absolute; top: 50%; transform: translateY(-50%); height: 22px; border-radius: 4px; cursor: pointer; transition: filter 0.15s; overflow: hidden; }
+  .tl-bar:hover { filter: brightness(1.3); }
+  .tl-bar.tl-bar-active { background: linear-gradient(90deg,#059669,#34d399); box-shadow: 0 0 8px #34d39944; }
+  .tl-bar.tl-bar-inactive { background: linear-gradient(90deg,#334155,#475569); }
+  .tl-density { display: flex; position: absolute; inset: 0; border-radius: 4px; }
+  .tl-week { flex-grow: 1; height: 100%; }
+  .tl-pill { position: absolute; top: 50%; transform: translateY(-50%); right: 7px; background: #0f172a88; border-radius: 3px; font-size: 0.6rem; color: #e2e8f0; padding: 1px 5px; white-space: nowrap; pointer-events: none; z-index: 2; }
+  .tl-dot { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 9px; height: 9px; border-radius: 50%; border: 2px solid #0f172a; z-index: 3; }
+  .tl-dot-start { background: #60a5fa; }
+  .tl-dot-end   { background: #f87171; }
+  .tl-dot-today { background: #fbbf24; animation: tl-pulse 1.5s infinite; }
+  @keyframes tl-pulse { 0%,100%{box-shadow:0 0 0 0 #fbbf2466} 50%{box-shadow:0 0 0 5px #fbbf2400} }
+  .tl-dot-label { position: absolute; top: calc(50% + 14px); font-size: 0.58rem; color: #64748b; white-space: nowrap; transform: translateX(-50%); z-index: 3; }
+  .tl-dot-label.tl-lbl-start { color: #60a5fa; }
+  .tl-dot-label.tl-lbl-end   { color: #f87171; }
+  .tl-dot-label.tl-lbl-today { color: #fbbf24; }
+  .tl-legend { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+  .tl-legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.63rem; color: #64748b; }
+  #tl-tooltip { display: none; position: fixed; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 14px; font-size: 0.72rem; box-shadow: 0 4px 20px #00000080; z-index: 9000; pointer-events: none; min-width: 190px; }
+  #tl-tooltip .tt-name { font-weight: 700; color: #f8fafc; margin-bottom: 6px; font-size: 0.78rem; }
+  #tl-tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 2px; }
+  #tl-tooltip .tt-lbl { color: #64748b; }
+  #tl-tooltip .tt-val { color: #94a3b8; font-weight: 600; }
+  #tl-tooltip .tt-val.green { color: #34d399; }
   /* Status confirm modal */
   #drone-status-modal {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
@@ -330,6 +364,18 @@
 <div class="main" id="dashboard" style="display:none">
   <div class="stats-grid" id="stats"></div>
   <div id="drone-strip" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px"></div>
+  <div class="chart-card" style="margin-bottom:14px" id="drone-timeline-card">
+    <h3>🚁 Drone Deployment Timeline</h3>
+    <div id="drone-timeline"></div>
+    <div class="tl-legend">
+      <div class="tl-legend-item"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#60a5fa;border:2px solid #0f172a"></span> First flight</div>
+      <div class="tl-legend-item"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f87171;border:2px solid #0f172a"></span> Last flight</div>
+      <div class="tl-legend-item"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fbbf24;border:2px solid #0f172a"></span> Still active</div>
+      <div class="tl-legend-item"><span style="display:inline-block;width:28px;height:6px;border-radius:3px;background:linear-gradient(90deg,#059669,#34d399)"></span> Active drone</div>
+      <div class="tl-legend-item"><span style="display:inline-block;width:28px;height:6px;border-radius:3px;background:linear-gradient(90deg,#334155,#475569)"></span> Retired</div>
+    </div>
+  </div>
+  <div id="tl-tooltip"></div>
   <div id="today-panel"></div>
   <div class="charts-grid">
     <div class="chart-card" id="cal-card">
@@ -1037,6 +1083,151 @@ function renderDashboard(missions, batteryMap) {
       </div>
     </div>`;
   }).join('');
+  // Drone Deployment Timeline
+  (function renderDroneTimeline(droneMap, missions) {
+    var container = document.getElementById('drone-timeline');
+    if (!container) return;
+    container.innerHTML = '';
+
+    var TODAY_MS = new Date(); TODAY_MS.setHours(0,0,0,0); TODAY_MS = TODAY_MS.getTime();
+
+    // Build weekly flight counts per drone
+    var weekCounts = {};
+    missions.forEach(function(m) {
+      var d = m.drone || '—'; if (d === '—') return;
+      var parts = m.date.split('/').map(Number);
+      var ms = new Date(parts[2], parts[0]-1, parts[1]).getTime();
+      var week = Math.floor(ms / (7*86400000));
+      if (!weekCounts[d]) weekCounts[d] = {};
+      weekCounts[d][week] = (weekCounts[d][week] || 0) + 1;
+    });
+
+    var entries = Object.entries(droneMap).filter(function(e){ return e[0] !== '—'; })
+      .sort(function(a,b){ return a[0].localeCompare(b[0]); });
+    if (!entries.length) { container.innerHTML = '<div style="font-size:0.72rem;color:#475569;padding:8px 0">No drone data available.</div>'; return; }
+
+    var allMs = entries.flatMap(function(e){ return [e[1].firstMs, e[1].lastMs]; });
+    allMs.push(TODAY_MS);
+    var minMs  = Math.min.apply(null, allMs);
+    var maxMs  = Math.max.apply(null, allMs);
+    var rangeMs = maxMs - minMs || 1;
+
+    function pct(ms) { return ((ms - minMs) / rangeMs * 100); }
+
+    // Month axis
+    var wrap = document.createElement('div'); wrap.className = 'tl-wrap';
+    var axisDiv = document.createElement('div'); axisDiv.className = 'tl-axis';
+    var months = [];
+    var cur = new Date(minMs); cur.setDate(1);
+    while (cur.getTime() <= maxMs + 86400000*15) {
+      var p = pct(cur.getTime());
+      if (p >= -1 && p <= 101) months.push({ p: p, label: cur.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}) });
+      cur.setMonth(cur.getMonth()+1);
+    }
+    months.forEach(function(m) {
+      var lbl = document.createElement('div'); lbl.className = 'tl-month-label';
+      lbl.style.left = m.p + '%'; lbl.textContent = m.label;
+      axisDiv.appendChild(lbl);
+    });
+    wrap.appendChild(axisDiv);
+
+    // Today line + grid lines (shared layer)
+    var todayLine = document.createElement('div'); todayLine.className = 'tl-today-line';
+    todayLine.style.left = pct(TODAY_MS) + '%';
+    wrap.appendChild(todayLine);
+    months.forEach(function(m) {
+      var g = document.createElement('div'); g.className = 'tl-grid-line';
+      g.style.left = m.p + '%'; g.style.top = '0'; g.style.bottom = '0';
+      wrap.appendChild(g);
+    });
+
+    var tooltip = document.getElementById('tl-tooltip');
+    function showTip(e, name, d, isActive) {
+      var totalMins = d.durs.reduce(function(s,v){return s+v;},0);
+      var days = Math.round((d.lastMs - d.firstMs) / 86400000);
+      var durStr = totalMins >= 60 ? Math.floor(totalMins/60)+'h '+(totalMins%60)+'m' : totalMins+'m';
+      var endStr = isActive ? '<span class="tt-val green">Today (active)</span>' : '<span class="tt-val">'+new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+'</span>';
+      tooltip.innerHTML = '<div class="tt-name">'+(isActive?'🟢':'⚫')+' '+name+'</div>'
+        +'<div class="tt-row"><span class="tt-lbl">First flight</span><span class="tt-val">'+new Date(d.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+'</span></div>'
+        +'<div class="tt-row"><span class="tt-lbl">Last flight</span>'+endStr+'</div>'
+        +'<div class="tt-row"><span class="tt-lbl">In service</span><span class="tt-val">'+days+' days</span></div>'
+        +'<div class="tt-row"><span class="tt-lbl">Total flights</span><span class="tt-val">'+d.flights+'</span></div>'
+        +'<div class="tt-row"><span class="tt-lbl">Flight time</span><span class="tt-val">'+durStr+'</span></div>';
+      tooltip.style.display = 'block';
+      moveTip(e);
+    }
+    function moveTip(e) {
+      tooltip.style.left = Math.min(e.clientX+14, window.innerWidth-210)+'px';
+      tooltip.style.top  = Math.min(e.clientY-10, window.innerHeight-160)+'px';
+    }
+    function hideTip() { tooltip.style.display = 'none'; }
+
+    entries.forEach(function(entry) {
+      var name = entry[0], d = entry[1];
+      var savedStatus = localStorage.getItem('droneStatus_' + name);
+      var isActive = savedStatus !== null ? savedStatus === 'active' : CFG_ACTIVE_DRONES.includes(name);
+      var endMs = isActive ? TODAY_MS : d.lastMs;
+
+      var row = document.createElement('div'); row.className = 'tl-row';
+
+      var lbl = document.createElement('div');
+      lbl.className = 'tl-drone-label' + (isActive ? ' tl-active' : '');
+      lbl.textContent = name; row.appendChild(lbl);
+
+      var track = document.createElement('div'); track.className = 'tl-track'; row.appendChild(track);
+
+      var barLeft  = pct(d.firstMs);
+      var barWidth = pct(endMs) - barLeft;
+      var bar = document.createElement('div');
+      bar.className = 'tl-bar ' + (isActive ? 'tl-bar-active' : 'tl-bar-inactive');
+      bar.style.left = barLeft + '%'; bar.style.width = barWidth + '%';
+
+      // Density overlay
+      var wc = weekCounts[name] || {};
+      var startWeek = Math.floor(d.firstMs / (7*86400000));
+      var endWeek   = Math.floor(endMs    / (7*86400000));
+      var totalWeeks = endWeek - startWeek + 1;
+      if (totalWeeks > 0) {
+        var maxW = 0;
+        for (var w = startWeek; w <= endWeek; w++) maxW = Math.max(maxW, wc[w]||0);
+        var dens = document.createElement('div'); dens.className = 'tl-density';
+        for (var w = startWeek; w <= endWeek; w++) {
+          var seg = document.createElement('div'); seg.className = 'tl-week';
+          seg.style.flexGrow = '1';
+          var alpha = maxW > 0 ? ((wc[w]||0) / maxW * 0.5) : 0;
+          seg.style.background = isActive ? 'rgba(0,0,0,'+alpha+')' : 'rgba(255,255,255,'+(alpha*0.35)+')';
+          dens.appendChild(seg);
+        }
+        bar.appendChild(dens);
+      }
+
+      var pill = document.createElement('div'); pill.className = 'tl-pill';
+      pill.textContent = d.flights + ' flights'; bar.appendChild(pill);
+
+      bar.addEventListener('mouseenter', function(e){ showTip(e, name, d, isActive); });
+      bar.addEventListener('mousemove',  moveTip);
+      bar.addEventListener('mouseleave', hideTip);
+      row.appendChild(bar);
+
+      // Start dot
+      var ds = document.createElement('div'); ds.className = 'tl-dot tl-dot-start'; ds.style.left = barLeft+'%'; row.appendChild(ds);
+      var ls = document.createElement('div'); ls.className = 'tl-dot-label tl-lbl-start'; ls.style.left = barLeft+'%';
+      ls.textContent = new Date(d.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}); row.appendChild(ls);
+
+      // End dot
+      var de = document.createElement('div'); de.className = 'tl-dot ' + (isActive ? 'tl-dot-today' : 'tl-dot-end');
+      de.style.left = (barLeft+barWidth)+'%'; row.appendChild(de);
+      var le = document.createElement('div'); le.className = 'tl-dot-label ' + (isActive ? 'tl-lbl-today' : 'tl-lbl-end');
+      le.style.left = (barLeft+barWidth)+'%';
+      le.textContent = isActive ? 'Active' : new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
+      row.appendChild(le);
+
+      wrap.appendChild(row);
+    });
+
+    container.appendChild(wrap);
+  })(droneMap, missions);
+
   // Drone status modal
   window._dsmPending = null;
   window.droneStatusChange = function(sel) {
