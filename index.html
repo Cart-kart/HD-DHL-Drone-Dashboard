@@ -1089,26 +1089,55 @@ function renderDashboard(missions, batteryMap) {
     container.innerHTML = '';
 
     var TODAY_MS = new Date(); TODAY_MS.setHours(0,0,0,0); TODAY_MS = TODAY_MS.getTime();
+    var GAP_MS = 30 * 86400000; // 30-day gap = treat as separate active period
 
-    // Build weekly flight counts per drone
-    var weekCounts = {};
+    // Build sorted date+week lists per drone from actual missions
+    var droneFlights = {};
     missions.forEach(function(m) {
       var d = m.drone || '—'; if (d === '—') return;
       var parts = m.date.split('/').map(Number);
       var ms = new Date(parts[2], parts[0]-1, parts[1]).getTime();
-      var week = Math.floor(ms / (7*86400000));
-      if (!weekCounts[d]) weekCounts[d] = {};
-      weekCounts[d][week] = (weekCounts[d][week] || 0) + 1;
+      if (!droneFlights[d]) droneFlights[d] = [];
+      droneFlights[d].push(ms);
     });
+
+    // Group a drone's sorted flight ms values into contiguous active periods
+    function getSegments(name) {
+      var dates = (droneFlights[name] || []).slice().sort(function(a,b){return a-b;});
+      if (!dates.length) return [];
+      var segs = [], seg = { firstMs: dates[0], lastMs: dates[0], flights: 1, weeks: {} };
+      seg.weeks[Math.floor(dates[0]/(7*86400000))] = 1;
+      for (var i = 1; i < dates.length; i++) {
+        if (dates[i] - seg.lastMs > GAP_MS) {
+          segs.push(seg);
+          seg = { firstMs: dates[i], lastMs: dates[i], flights: 1, weeks: {} };
+        } else {
+          seg.lastMs = dates[i];
+          seg.flights++;
+        }
+        var wk = Math.floor(dates[i]/(7*86400000));
+        seg.weeks[wk] = (seg.weeks[wk] || 0) + 1;
+      }
+      segs.push(seg);
+      return segs;
+    }
 
     var entries = Object.entries(droneMap).filter(function(e){ return e[0] !== '—'; })
       .sort(function(a,b){ return a[0].localeCompare(b[0]); });
     if (!entries.length) { container.innerHTML = '<div style="font-size:0.72rem;color:#475569;padding:8px 0">No drone data available.</div>'; return; }
 
-    // Active drone = the one with the most recent last flight (data-driven, ignores manual toggle)
-    var latestFlightMs = Math.max.apply(null, entries.map(function(e){ return e[1].lastMs; }));
+    // Active drone = the one whose latest segment ends most recently
+    var latestFlightMs = 0;
+    entries.forEach(function(e) {
+      var segs = getSegments(e[0]);
+      if (segs.length) latestFlightMs = Math.max(latestFlightMs, segs[segs.length-1].lastMs);
+    });
 
-    var allMs = entries.flatMap(function(e){ return [e[1].firstMs, e[1].lastMs]; });
+    // Axis range = span of all segment endpoints (no today padding)
+    var allMs = [];
+    entries.forEach(function(e) {
+      getSegments(e[0]).forEach(function(s){ allMs.push(s.firstMs, s.lastMs); });
+    });
     var minMs  = Math.min.apply(null, allMs);
     var maxMs  = Math.max.apply(null, allMs);
     var rangeMs = maxMs - minMs || 1;
@@ -1132,7 +1161,7 @@ function renderDashboard(missions, batteryMap) {
     });
     wrap.appendChild(axisDiv);
 
-    // Today line + grid lines (shared layer)
+    // Today line + grid lines
     var todayLine = document.createElement('div'); todayLine.className = 'tl-today-line';
     todayLine.style.left = pct(TODAY_MS) + '%';
     wrap.appendChild(todayLine);
@@ -1143,15 +1172,15 @@ function renderDashboard(missions, batteryMap) {
     });
 
     var tooltip = document.getElementById('tl-tooltip');
-    function showTip(e, name, d, isActive) {
+    function showTip(e, name, d, seg, isActiveDrone) {
       var totalMins = d.durs.reduce(function(s,v){return s+v;},0);
-      var days = Math.round((d.lastMs - d.firstMs) / 86400000);
       var durStr = totalMins >= 60 ? Math.floor(totalMins/60)+'h '+(totalMins%60)+'m' : totalMins+'m';
-      var endStr = '<span class="tt-val' + (isActive ? ' green' : '') + '">' + new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) + (isActive ? ' ● Current' : '') + '</span>';
-      tooltip.innerHTML = '<div class="tt-name">'+(isActive?'🟢':'⚫')+' '+name+'</div>'
-        +'<div class="tt-row"><span class="tt-lbl">First flight</span><span class="tt-val">'+new Date(d.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+'</span></div>'
-        +'<div class="tt-row"><span class="tt-lbl">Last flight</span>'+endStr+'</div>'
-        +'<div class="tt-row"><span class="tt-lbl">In service</span><span class="tt-val">'+days+' days</span></div>'
+      var segDays = Math.round((seg.lastMs - seg.firstMs) / 86400000) + 1;
+      tooltip.innerHTML = '<div class="tt-name">'+(isActiveDrone?'🟢':'⚫')+' '+name+'</div>'
+        +'<div class="tt-row"><span class="tt-lbl">Period start</span><span class="tt-val">'+new Date(seg.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+'</span></div>'
+        +'<div class="tt-row"><span class="tt-lbl">Period end</span><span class="tt-val' + (isActiveDrone && seg.lastMs === latestFlightMs ? ' green' : '') + '">'+new Date(seg.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+(isActiveDrone && seg.lastMs === latestFlightMs ? ' ● Current' : '')+'</span></div>'
+        +'<div class="tt-row"><span class="tt-lbl">Period flights</span><span class="tt-val">'+seg.flights+'</span></div>'
+        +'<div class="tt-row"><span class="tt-lbl">Active days</span><span class="tt-val">'+segDays+' days</span></div>'
         +'<div class="tt-row"><span class="tt-lbl">Total flights</span><span class="tt-val">'+d.flights+'</span></div>'
         +'<div class="tt-row"><span class="tt-lbl">Flight time</span><span class="tt-val">'+durStr+'</span></div>';
       tooltip.style.display = 'block';
@@ -1165,63 +1194,71 @@ function renderDashboard(missions, batteryMap) {
 
     entries.forEach(function(entry) {
       var name = entry[0], d = entry[1];
-      // Active = drone with the most recent last flight — never extends bar to today
-      var isActive = (d.lastMs === latestFlightMs);
-      var endMs = d.lastMs;
+      var segs = getSegments(name);
+      if (!segs.length) return;
+      var isActiveDrone = (segs[segs.length-1].lastMs === latestFlightMs);
 
       var row = document.createElement('div'); row.className = 'tl-row';
-
       var lbl = document.createElement('div');
-      lbl.className = 'tl-drone-label' + (isActive ? ' tl-active' : '');
+      lbl.className = 'tl-drone-label' + (isActiveDrone ? ' tl-active' : '');
       lbl.textContent = name; row.appendChild(lbl);
 
       var track = document.createElement('div'); track.className = 'tl-track'; row.appendChild(track);
 
-      var barLeft  = pct(d.firstMs);
-      var barWidth = pct(endMs) - barLeft;
-      var bar = document.createElement('div');
-      bar.className = 'tl-bar ' + (isActive ? 'tl-bar-active' : 'tl-bar-inactive');
-      bar.style.left = barLeft + '%'; bar.style.width = barWidth + '%';
+      segs.forEach(function(seg, si) {
+        var isLastSeg = (si === segs.length - 1);
+        var barLeft  = pct(seg.firstMs);
+        var barWidth = Math.max(pct(seg.lastMs) - barLeft, 0.3); // min 0.3% so single-day is visible
 
-      // Density overlay
-      var wc = weekCounts[name] || {};
-      var startWeek = Math.floor(d.firstMs / (7*86400000));
-      var endWeek   = Math.floor(endMs    / (7*86400000));
-      var totalWeeks = endWeek - startWeek + 1;
-      if (totalWeeks > 0) {
+        var bar = document.createElement('div');
+        bar.className = 'tl-bar ' + (isActiveDrone && isLastSeg ? 'tl-bar-active' : 'tl-bar-inactive');
+        bar.style.left = barLeft + '%'; bar.style.width = barWidth + '%';
+
+        // Density overlay per segment
+        var weeks = seg.weeks;
+        var startWeek = Math.floor(seg.firstMs / (7*86400000));
+        var endWeek   = Math.floor(seg.lastMs  / (7*86400000));
         var maxW = 0;
-        for (var w = startWeek; w <= endWeek; w++) maxW = Math.max(maxW, wc[w]||0);
-        var dens = document.createElement('div'); dens.className = 'tl-density';
-        for (var w = startWeek; w <= endWeek; w++) {
-          var seg = document.createElement('div'); seg.className = 'tl-week';
-          seg.style.flexGrow = '1';
-          var alpha = maxW > 0 ? ((wc[w]||0) / maxW * 0.5) : 0;
-          seg.style.background = isActive ? 'rgba(0,0,0,'+alpha+')' : 'rgba(255,255,255,'+(alpha*0.35)+')';
-          dens.appendChild(seg);
+        for (var w = startWeek; w <= endWeek; w++) maxW = Math.max(maxW, weeks[w]||0);
+        if (endWeek >= startWeek) {
+          var dens = document.createElement('div'); dens.className = 'tl-density';
+          for (var w = startWeek; w <= endWeek; w++) {
+            var wSeg = document.createElement('div'); wSeg.className = 'tl-week';
+            wSeg.style.flexGrow = '1';
+            var alpha = maxW > 0 ? ((weeks[w]||0) / maxW * 0.5) : 0;
+            wSeg.style.background = (isActiveDrone && isLastSeg) ? 'rgba(0,0,0,'+alpha+')' : 'rgba(255,255,255,'+(alpha*0.35)+')';
+            dens.appendChild(wSeg);
+          }
+          bar.appendChild(dens);
         }
-        bar.appendChild(dens);
-      }
 
-      var pill = document.createElement('div'); pill.className = 'tl-pill';
-      pill.textContent = d.flights + ' flights'; bar.appendChild(pill);
+        var pill = document.createElement('div'); pill.className = 'tl-pill';
+        pill.textContent = seg.flights + ' flights'; bar.appendChild(pill);
 
-      bar.addEventListener('mouseenter', function(e){ showTip(e, name, d, isActive); });
-      bar.addEventListener('mousemove',  moveTip);
-      bar.addEventListener('mouseleave', hideTip);
-      row.appendChild(bar);
+        bar.addEventListener('mouseenter', (function(s){ return function(e){ showTip(e, name, d, s, isActiveDrone); }; })(seg));
+        bar.addEventListener('mousemove',  moveTip);
+        bar.addEventListener('mouseleave', hideTip);
+        row.appendChild(bar);
 
-      // Start dot
-      var ds = document.createElement('div'); ds.className = 'tl-dot tl-dot-start'; ds.style.left = barLeft+'%'; row.appendChild(ds);
-      var ls = document.createElement('div'); ls.className = 'tl-dot-label tl-lbl-start'; ls.style.left = barLeft+'%';
-      ls.textContent = new Date(d.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}); row.appendChild(ls);
+        // Start dot + label (first segment only, or each segment)
+        var ds = document.createElement('div'); ds.className = 'tl-dot tl-dot-start'; ds.style.left = barLeft+'%'; row.appendChild(ds);
+        if (si === 0) {
+          var ls = document.createElement('div'); ls.className = 'tl-dot-label tl-lbl-start'; ls.style.left = barLeft+'%';
+          ls.textContent = new Date(seg.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}); row.appendChild(ls);
+        }
 
-      // End dot
-      var de = document.createElement('div'); de.className = 'tl-dot ' + (isActive ? 'tl-dot-today' : 'tl-dot-end');
-      de.style.left = (barLeft+barWidth)+'%'; row.appendChild(de);
-      var le = document.createElement('div'); le.className = 'tl-dot-label ' + (isActive ? 'tl-lbl-today' : 'tl-lbl-end');
-      le.style.left = (barLeft+barWidth)+'%';
-      le.textContent = new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) + (isActive ? ' ●' : '');
-      row.appendChild(le);
+        // End dot + label
+        var de = document.createElement('div');
+        de.className = 'tl-dot ' + (isActiveDrone && isLastSeg ? 'tl-dot-today' : 'tl-dot-end');
+        de.style.left = (barLeft+barWidth)+'%'; row.appendChild(de);
+        if (isLastSeg) {
+          var le = document.createElement('div');
+          le.className = 'tl-dot-label ' + (isActiveDrone ? 'tl-lbl-today' : 'tl-lbl-end');
+          le.style.left = (barLeft+barWidth)+'%';
+          le.textContent = new Date(seg.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) + (isActiveDrone ? ' ●' : '');
+          row.appendChild(le);
+        }
+      });
 
       wrap.appendChild(row);
     });
