@@ -1105,6 +1105,9 @@ function renderDashboard(missions, batteryMap) {
       .sort(function(a,b){ return a[0].localeCompare(b[0]); });
     if (!entries.length) { container.innerHTML = '<div style="font-size:0.72rem;color:#475569;padding:8px 0">No drone data available.</div>'; return; }
 
+    // Active drone = the one with the most recent last flight (data-driven, ignores manual toggle)
+    var latestFlightMs = Math.max.apply(null, entries.map(function(e){ return e[1].lastMs; }));
+
     var allMs = entries.flatMap(function(e){ return [e[1].firstMs, e[1].lastMs]; });
     allMs.push(TODAY_MS);
     var minMs  = Math.min.apply(null, allMs);
@@ -1145,7 +1148,7 @@ function renderDashboard(missions, batteryMap) {
       var totalMins = d.durs.reduce(function(s,v){return s+v;},0);
       var days = Math.round((d.lastMs - d.firstMs) / 86400000);
       var durStr = totalMins >= 60 ? Math.floor(totalMins/60)+'h '+(totalMins%60)+'m' : totalMins+'m';
-      var endStr = isActive ? '<span class="tt-val green">Today (active)</span>' : '<span class="tt-val">'+new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+'</span>';
+      var endStr = '<span class="tt-val' + (isActive ? ' green' : '') + '">' + new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) + (isActive ? ' ● Current' : '') + '</span>';
       tooltip.innerHTML = '<div class="tt-name">'+(isActive?'🟢':'⚫')+' '+name+'</div>'
         +'<div class="tt-row"><span class="tt-lbl">First flight</span><span class="tt-val">'+new Date(d.firstMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+'</span></div>'
         +'<div class="tt-row"><span class="tt-lbl">Last flight</span>'+endStr+'</div>'
@@ -1163,9 +1166,9 @@ function renderDashboard(missions, batteryMap) {
 
     entries.forEach(function(entry) {
       var name = entry[0], d = entry[1];
-      var savedStatus = localStorage.getItem('droneStatus_' + name);
-      var isActive = savedStatus !== null ? savedStatus === 'active' : CFG_ACTIVE_DRONES.includes(name);
-      var endMs = isActive ? TODAY_MS : d.lastMs;
+      // Active = drone with the most recent last flight — never extends bar to today
+      var isActive = (d.lastMs === latestFlightMs);
+      var endMs = d.lastMs;
 
       var row = document.createElement('div'); row.className = 'tl-row';
 
@@ -1218,7 +1221,7 @@ function renderDashboard(missions, batteryMap) {
       de.style.left = (barLeft+barWidth)+'%'; row.appendChild(de);
       var le = document.createElement('div'); le.className = 'tl-dot-label ' + (isActive ? 'tl-lbl-today' : 'tl-lbl-end');
       le.style.left = (barLeft+barWidth)+'%';
-      le.textContent = isActive ? 'Active' : new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
+      le.textContent = new Date(d.lastMs).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) + (isActive ? ' ●' : '');
       row.appendChild(le);
 
       wrap.appendChild(row);
