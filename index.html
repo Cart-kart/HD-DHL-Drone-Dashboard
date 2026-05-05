@@ -1109,7 +1109,6 @@ function renderDashboard(missions, batteryMap) {
     var latestFlightMs = Math.max.apply(null, entries.map(function(e){ return e[1].lastMs; }));
 
     var allMs = entries.flatMap(function(e){ return [e[1].firstMs, e[1].lastMs]; });
-    allMs.push(TODAY_MS);
     var minMs  = Math.min.apply(null, allMs);
     var maxMs  = Math.max.apply(null, allMs);
     var rangeMs = maxMs - minMs || 1;
